@@ -6,12 +6,7 @@ class CreateTicketForm(BaseModel):
     park_ticket_id: str = Field(..., title="공원 티켓 ID", description="구매할 공원 티켓의 고유 식별자")
 
 class TicketResponse(BaseModel):
-    user_id: str
-    park_id: str
-    park_ticket_data: dict
-    purchase_date: str
-    amount: float
     token: str 
-
+    
     class Config:
         orm_mode = True
