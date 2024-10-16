@@ -1,20 +1,18 @@
-# user_service/app/schemas.py
 from pydantic import BaseModel, EmailStr, ConfigDict ,BeforeValidator ,Field
-from typing import Optional
 from datetime import datetime
-from bson import ObjectId
+from typing import Optional
 from typing import Annotated
 
 PyObjectId = Annotated[str, BeforeValidator(str)]
 
-class UserModel(BaseModel):
+class PurchaseModel(BaseModel):  
     id: Optional[PyObjectId] = Field(alias="_id", default=None)
-    email: EmailStr
-    password: str
-    is_admin: Optional[bool] = False
-    created_at: datetime
-    updated_at: datetime
-    
+    purchase_user_id: int
+    purchase_ticket_park_id: int
+    purchase_ticket_type_field: str
+    purchase_ticket_quantity: int
+    purchase_ticket_purchased_at: datetime
+
     class Config(ConfigDict):
         populate_by_name = True
         arbitrary_types_allowed=True
@@ -22,6 +20,8 @@ class UserModel(BaseModel):
             datetime: lambda dt: dt.isoformat(),
             ObjectId: lambda oid: str(oid),
         }
+
+
     
 class UserCreate(UserModel):
     pass

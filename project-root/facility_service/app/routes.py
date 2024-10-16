@@ -1,24 +1,22 @@
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
-
-from . import models, schemas, utils
+from fastapi import APIRouter, HTTPException, Depends
+from .utils import get_database
+from bson import ObjectId
+from . import utils, models
 from .database import get_db
+router = APIRouter()
 
-router = APIRouter(
-    prefix="/facilities",
-    tags=["Facilities"]
-)
-
-@router.post("/", response_model=schemas.FacilityResponse)
-def create_facility(facility: schemas.FacilityCreate, db: Session = Depends(get_db)):
-    db_facility = utils.get_facility_by_name(db, name=facility.name)
-    if db_facility:
+@router.post("/facilities", response_model=models.FacilityRead)
+async def create_facility(facility: models.FacilityModel, db=Depends(get_db)):
+    existing_facility = await utils.get_facility_by_name(db, facility.name)
+    if existing_facility:
         raise HTTPException(status_code=400, detail="Facility already exists")
-    return utils.create_facility(db=db, facility=facility)
+    new_facility = await db.facilities.insert_one(facility.model_dump(by_alias=True, exclude=["id"]))
+    created_facility = await db.facilities.find_one({"_id": new_facility.inserted_id})
+    return created_facility
 
-@router.get("/{facility_id}", response_model=schemas.FacilityResponse)
-def read_facility(facility_id: int, db: Session = Depends(get_db)):
-    db_facility = utils.get_facility(db, facility_id=facility_id)
-    if db_facility is None:
+@router.get("/facilities/{facility_id}", response_model=models.FacilityRead)
+async def get_facility(facility_id: str, db=Depends(get_db)):
+    facility = await utils.get_facility_by_id(db, facility_id)
+    if not facility:
         raise HTTPException(status_code=404, detail="Facility not found")
-    return db_facility
+    return facility

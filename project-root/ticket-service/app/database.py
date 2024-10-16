@@ -1,4 +1,3 @@
-# user_service/app/utils.py (유사하게 park_service 및 facility_service에도 생성)
 import os
 from motor.motor_asyncio import AsyncIOMotorClient
 from dotenv import load_dotenv

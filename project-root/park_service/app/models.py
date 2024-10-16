@@ -1,11 +1,42 @@
-from sqlalchemy import Column, Integer, String
-from sqlalchemy.ext.declarative import declarative_base
+from pydantic import BaseModel, EmailStr, ConfigDict ,BeforeValidator ,Field
+from typing import Optional
+from datetime import datetime
+from bson import ObjectId
+from typing import Annotated ,List
+PyObjectId = Annotated[str, BeforeValidator(str)]
 
-Base = declarative_base()
+class TicketTypeModel(BaseModel):
+    id: Optional[PyObjectId] = Field(alias="_id", default=None)
+    name: str
+    description: str
+    price: float
+    
+    class Config(ConfigDict):
+        populate_by_name = True
+        arbitrary_types_allowed=True
+        json_encoders = {
+            datetime: lambda dt: dt.isoformat(),
+            ObjectId: lambda oid: str(oid),
+        }
 
-class Park(Base):
-    __tablename__ = "parks"
+class ParkModel(BaseModel):
+    id: Optional[PyObjectId] = Field(alias="_id", default=None)
+    name: str
+    location: str
+    description: str
+    ticket_types: List[TicketTypeModel] = []
+    
+    class Config(ConfigDict):
+        populate_by_name = True
+        arbitrary_types_allowed=True
+        json_encoders = {
+            datetime: lambda dt: dt.isoformat(),
+            ObjectId: lambda oid: str(oid),
+        }
 
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String, index=True)
-    location = Column(String, index=True)
+class ParkRead(ParkModel):
+    name: str
+    location: str
+    description: str
+    ticket_types: List[TicketTypeModel] = []
+

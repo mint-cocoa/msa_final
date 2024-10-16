@@ -28,3 +28,9 @@ def proxy_facilities():
     with httpx.Client() as client:
         response = client.get(f"{FACILITY_SERVICE_URL}/facilities/")
         return response.json()
+
+@app.get("/tickets/")
+def proxy_tickets():
+    with httpx.Client() as client:
+        response = client.get(f"{TICKET_SERVICE_URL}/tickets/")
+        return response.json()
