@@ -1,24 +1,30 @@
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
-
-from . import models, schemas, utils
+# park_service/app/routes.py
+from fastapi import APIRouter, HTTPException, Depends
+from .models import ParkModel, ParkRead    
 from .database import get_db
+from bson import ObjectId
 
-router = APIRouter(
-    prefix="/parks",
-    tags=["Parks"]
-)
+router = APIRouter()
 
-@router.post("/", response_model=schemas.ParkResponse)
-def create_park(park: schemas.ParkCreate, db: Session = Depends(get_db)):
-    db_park = utils.get_park_by_name(db, name=park.name)
-    if db_park:
+@router.post("/parks", response_model=ParkRead)
+async def create_park(park: ParkModel, db=Depends(get_db)):
+    existing_park = await db.parks.find_one({"name": park.name})
+    if existing_park:
         raise HTTPException(status_code=400, detail="Park already exists")
-    return utils.create_park(db=db, park=park)
+    park_data = park.model_dump(by_alias=True, exclude={"id"})
+    new_park = await db.parks.insert_one(park_data)
+    created_park = await db.parks.find_one({"_id": new_park.inserted_id})
+    return created_park
 
-@router.get("/{park_id}", response_model=schemas.ParkResponse)
-def read_park(park_id: int, db: Session = Depends(get_db)):
-    db_park = utils.get_park(db, park_id=park_id)
-    if db_park is None:
+@router.get("/parks/{park_id}", response_model=ParkRead)
+async def get_park(park_id: str, db=Depends(get_db)):
+    try:
+        park_object_id = ObjectId(park_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid Park ID")
+    
+    park = await db.parks.find_one({"_id": park_object_id})
+    if not park:
         raise HTTPException(status_code=404, detail="Park not found")
-    return db_park
+    return park
+
