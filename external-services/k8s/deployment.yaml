@@ -1,31 +1,130 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: external-services
+  name: api-gateway
 spec:
   replicas: 3
   selector:
     matchLabels:
-      app: external-services
+      app: api-gateway
   template:
     metadata:
       labels:
-        app: external-services
+        app: api-gateway
     spec:
       containers:
       - name: api-gateway
         image: kasd0134/msa-apigateway:latest
         ports:
         - containerPort: 8000
+        env:
+        - name: USER_SERVICE_URL
+          value: "http://user-service:8000"
+        - name: PARK_SERVICE_URL
+          value: "http://park-service:8000"
+        - name: FACILITY_SERVICE_URL
+          value: "http://facility-service:8000"
+        - name: TICKET_SERVICE_URL
+          value: "http://ticket-service:8000"
+        - name: INPARK_SERVICE_URL
+          value: "http://inpark-service:8000"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: user-service
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: user-service
+  template:
+    metadata:
+      labels:
+        app: user-service
+    spec:
+      containers:
+      - name: user-service
+        image: kasd0134/msa-userservice:latest
+        ports:
+        - containerPort: 8000
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: park-service
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: park-service
+  template:
+    metadata:
+      labels:
+        app: park-service
+    spec:
+      containers:
       - name: park-service
         image: kasd0134/msa-parkservice:latest
         ports:
         - containerPort: 8000
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: facility-service
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: facility-service
+  template:
+    metadata:
+      labels:
+        app: facility-service
+    spec:
+      containers:
       - name: facility-service
-        image: kasd0134/msa-facility-service:latest
+        image: kasd0134/msa-facilityservice:latest
         ports:
         - containerPort: 8000
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ticket-service
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: ticket-service
+  template:
+    metadata:
+      labels:
+        app: ticket-service
+    spec:
+      containers:
       - name: ticket-service
-        image: kasd0134/msa-ticket-service:latest
+        image: kasd0134/msa-ticketservice:latest
+        ports:
+        - containerPort: 8000
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: inpark-service
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: inpark-service
+  template:
+    metadata:
+      labels:
+        app: inpark-service
+    spec:
+      containers:
+      - name: inpark-service
+        image: kasd0134/msa-inparkservice:latest
         ports:
         - containerPort: 8000

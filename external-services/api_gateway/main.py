@@ -1,36 +1,57 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
+from fastapi.responses import JSONResponse
 import httpx
+import os
 
 app = FastAPI()
 
-USER_SERVICE_URL = "http://user_service:8000"
-PARK_SERVICE_URL = "http://park_service:8000"
-FACILITY_SERVICE_URL = "http://facility_service:8000"
+# 환경 변수에서 서비스 URL 가져오기
+USER_SERVICE_URL = os.getenv("USER_SERVICE_URL", "http://user-service:8000")
+PARK_SERVICE_URL = os.getenv("PARK_SERVICE_URL", "http://park-service:8000")
+FACILITY_SERVICE_URL = os.getenv("FACILITY_SERVICE_URL", "http://facility-service:8000")
+TICKET_SERVICE_URL = os.getenv("TICKET_SERVICE_URL", "http://ticket-service:8000")
+INPARK_SERVICE_URL = os.getenv("INPARK_SERVICE_URL", "http://inpark-service:8000")
 
 @app.get("/")
 def read_root():
-    return {"message": "Welcome to the API Gateway"}
+    return {"message": "Welcome to the Theme Park API Gateway"}
 
-@app.get("/users/")
-def proxy_users():
-    with httpx.Client() as client:
-        response = client.get(f"{USER_SERVICE_URL}/users/")
-        return response.json()
+async def proxy_request(url: str, method: str, path: str, json: dict = None, params: dict = None):
+    async with httpx.AsyncClient() as client:
+        try:
+            response = await client.request(method, f"{url}{path}", json=json, params=params)
+            return JSONResponse(content=response.json(), status_code=response.status_code)
+        except httpx.RequestError as exc:
+            raise HTTPException(status_code=503, detail=f"Service unavailable: {exc}")
 
-@app.get("/parks/")
-def proxy_parks():
-    with httpx.Client() as client:
-        response = client.get(f"{PARK_SERVICE_URL}/parks/")
-        return response.json()
+@app.get("/users/{path:path}")
+async def proxy_users(path: str):
+    return await proxy_request(USER_SERVICE_URL, "GET", f"/users/{path}")
 
-@app.get("/facilities/")
-def proxy_facilities():
-    with httpx.Client() as client:
-        response = client.get(f"{FACILITY_SERVICE_URL}/facilities/")
-        return response.json()
+@app.get("/parks/{path:path}")
+async def proxy_parks(path: str):
+    return await proxy_request(PARK_SERVICE_URL, "GET", f"/parks/{path}")
 
-@app.get("/tickets/")
-def proxy_tickets():
-    with httpx.Client() as client:
-        response = client.get(f"{TICKET_SERVICE_URL}/tickets/")
-        return response.json()
+@app.get("/facilities/{path:path}")
+async def proxy_facilities(path: str):
+    return await proxy_request(FACILITY_SERVICE_URL, "GET", f"/facilities/{path}")
+
+@app.get("/tickets/{path:path}")
+async def proxy_tickets(path: str):
+    return await proxy_request(TICKET_SERVICE_URL, "GET", f"/tickets/{path}")
+
+@app.post("/tickets/{path:path}")
+async def proxy_create_ticket(path: str, ticket_data: dict):
+    return await proxy_request(TICKET_SERVICE_URL, "POST", f"/tickets/{path}", json=ticket_data)
+
+@app.get("/inpark/{path:path}")
+async def proxy_inpark(path: str):
+    return await proxy_request(INPARK_SERVICE_URL, "GET", f"/inpark/{path}")
+
+@app.post("/inpark/{path:path}")
+async def proxy_inpark_action(path: str, action_data: dict):
+    return await proxy_request(INPARK_SERVICE_URL, "POST", f"/inpark/{path}", json=action_data)
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
