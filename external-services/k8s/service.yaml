@@ -9,7 +9,7 @@ spec:
     - protocol: TCP
       port: 8000
       targetPort: 8000
-  type: LoadBalancer  # 외부에서 접근 가능하도록 설정
+  type: LoadBalancer
 
 ---
 apiVersion: v1

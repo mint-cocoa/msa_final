@@ -14,17 +14,13 @@ spec:
     spec:
       containers:
       - name: api-gateway
-        image: your-image/api_gateway:latest  # 미리 빌드한 이미지 사용
+        image: kasd0134/msa-apigateway:latest
         ports:
         - containerPort: 8000
         env:
-        - name: USER_SERVICE_URL
-          value: "http://user-service:8000"
         - name: PARK_SERVICE_URL
           value: "http://park-service:8000"
         - name: FACILITY_SERVICE_URL
           value: "http://facility-service:8000"
         - name: TICKET_SERVICE_URL
           value: "http://ticket-service:8000"
-        - name: INPARK_SERVICE_URL
-          value: "http://inpark-service:8000"
