@@ -1,0 +1,31 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: external-services
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: external-services
+  template:
+    metadata:
+      labels:
+        app: external-services
+    spec:
+      containers:
+      - name: api-gateway
+        image: kasd0134/msa-apigateway:latest
+        ports:
+        - containerPort: 8000
+      - name: park-service
+        image: kasd0134/msa-parkservice:latest
+        ports:
+        - containerPort: 8000
+      - name: facility-service
+        image: kasd0134/msa-facility-service:latest
+        ports:
+        - containerPort: 8000
+      - name: ticket-service
+        image: kasd0134/msa-ticket-service:latest
+        ports:
+        - containerPort: 8000

@@ -1,69 +1,49 @@
-from fastapi import APIRouter, Depends, HTTPException
-from bson import ObjectId
-from .schemas import CreateTicketForm, TicketResponse
-from .database import users_collection, parks_collection , ticket_collection
-from .utils import create_ticket
-from datetime import datetime
+from fastapi import APIRouter, HTTPException, Depends
+from .database import get_db
 from . import models
-import secrets
-router = APIRouter(
-    prefix="/tickets",
-    tags=["Tickets"]
-)
+from jose import jwt
+from datetime import datetime, timedelta
+from typing import Optional
 
-@router.post("/create_ticket", response_model=TicketResponse)
-def create_ticket_endpoint(form: CreateTicketForm):
-    # 사용자 정보를 가져옵니다.
-    user = users_collection.find_one({"_id": ObjectId(form.user_id)})
-    if not user:
-        raise HTTPException(status_code=404, detail="사용자를 찾을 수 없습니다.")
+router = APIRouter()
 
-    # 공원 컬렉션에서 park_ticket_id를 가진 티켓을 찾습니다.
-    park = parks_collection.find_one({
-        "tickets._id": ObjectId(form.park_ticket_id)
-    })
-    if not park:
-        raise HTTPException(status_code=404, detail="공원 또는 티켓을 찾을 수 없습니다.")
+SECRET_KEY = "your-secret-key"  # 실제 운영 환경에서는 환경 변수로 관리해야 합니다.
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 1440  # 24시간
 
-    # 해당 티켓 정보를 가져옵니다.
-    park_ticket = None
-    for ticket in park.get('tickets', []):
-        if ticket['_id'] == ObjectId(form.park_ticket_id):
-            park_ticket = ticket
-            break
-
-    if not park_ticket:
-        raise HTTPException(status_code=404, detail="티켓을 찾을 수 없습니다.")
-
-    # 티켓 생성
-    ticket_data = {
-        "user_id": form.user_id,
-        "park_id": str(park['_id']),
-        "park_ticket_data": park_ticket,
-        "purchase_date": datetime.utcnow().isoformat(),
-        "amount": park_ticket['price'],
-        "available_date": form.available_date,
-        "token": secrets.token_urlsafe(32)
-    }
-
-    result = ticket_collection.insert_one(ticket_data)
-
-    return result
-
-@router.get("/get_ticket/{token}", response_model=TicketResponse)
-def get_ticket_endpoint(token: str):
-    ticket = ticket_collection.find_one({"token": token})
-    if not ticket:
-        raise HTTPException(status_code=404, detail="티켓을 찾을 수 없습니다.")
-    return ticket
-
-@router.post("/use_ticket/{token}")
-def use_ticket_endpoint(token: str):
-    ticket = ticket_collection.find_one({"token": token})
-    if not ticket:
-        raise HTTPException(status_code=404, detail="티켓을 찾을 수 없습니다.")
+def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
+    to_encode = data.copy()
+    if expires_delta:
+        expire = datetime.utcnow() + expires_delta
     else:
-        ticket_collection.delete_one({"token": token})
-        
-        return {"message": "티켓이 사용되었습니다."}
+        expire = datetime.utcnow() + timedelta(minutes=15)
+    to_encode.update({"exp": expire})
+    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    return encoded_jwt
 
+@router.get("/validate/{token}")
+async def validate_ticket(token: str, db=Depends(get_db)):
+    ticket = await db.tickets.find_one({"token": token})
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Ticket not found")
+    return {"valid": True, "ticket_info": ticket}
+
+@router.post("/use/{token}")
+async def use_ticket(token: str, db=Depends(get_db)):
+    ticket = await db.tickets.find_one({"token": token})
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Ticket not found")
+    if ticket["used"]:
+        raise HTTPException(status_code=400, detail="Ticket already used")
+    
+    # 티켓 사용 처리
+    await db.tickets.update_one({"token": token}, {"$set": {"used": True, "used_at": datetime.utcnow()}})
+    
+    # JWT 토큰 생성
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data={"sub": str(ticket["_id"]), "user_id": ticket["user_id"], "park_id": ticket["park_id"]},
+        expires_delta=access_token_expires
+    )
+    
+    return {"message": "Ticket used successfully", "access_token": access_token, "token_type": "bearer"}

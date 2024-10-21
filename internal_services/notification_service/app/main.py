@@ -1,6 +1,8 @@
 from fastapi import FastAPI
 from kafka import KafkaConsumer
 import json
+from .kafka_consumer import start_kafka_consumer
+import asyncio
 
 app = FastAPI()
 
@@ -18,6 +20,14 @@ def consume_messages():
 
 import threading
 threading.Thread(target=consume_messages, daemon=True).start()
+
+@app.on_event("startup")
+async def startup_event():
+    asyncio.create_task(start_kafka_consumer())
+
+@app.get("/health")
+async def health_check():
+    return {"status": "healthy"}
 
 @app.get("/")
 async def root():

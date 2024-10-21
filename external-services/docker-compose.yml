@@ -1,0 +1,62 @@
+version: '3.8'
+
+services:
+  mongodb:
+    image: mongo:latest
+    container_name: mongodb
+    restart: always
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: example
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+
+  redis:
+    image: redis:latest
+    container_name: redis
+    ports:
+      - "6379:6379"
+
+  api_gateway:
+    build: ./api_gateway
+    container_name: api_gateway
+    ports:
+      - "8000:8000"
+    depends_on:
+      - park_service
+      - facility_service
+    environment:
+      - PARK_SERVICE_URL=http://park_service:8000
+      - FACILITY_SERVICE_URL=http://facility_service:8000
+
+  park_service:
+    build: ./park_service
+    container_name: park_service
+    environment:
+      - MONGODB_URI=mongodb://root:example@mongodb:27017/parks?authSource=admin
+      - DATABASE_NAME=parks
+    depends_on:
+      - mongodb
+
+  facility_service:
+    build: ./facility_service
+    container_name: facility_service
+    environment:
+      - MONGODB_URI=mongodb://root:example@mongodb:27017/facilities?authSource=admin
+      - DATABASE_NAME=facilities
+    depends_on:
+      - mongodb
+
+  ticket_service:
+    build: ./ticket_service
+    container_name: ticket_service
+    environment:
+      - MONGODB_URI=mongodb://root:example@mongodb:27017/tickets?authSource=admin
+      - DATABASE_NAME=tickets
+    depends_on:
+      - mongodb
+
+volumes:
+  mongodb_data:
