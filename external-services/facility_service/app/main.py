@@ -13,4 +13,4 @@ app = FastAPI(
 def read_root():
     return {"message": "Welcome to the Facility Service"}
 
-app.include_router(facility_router, prefix="/facilities")  # '/api' 대신 '/facilities'를 사용
+app.include_router(facility_router, prefix="/api")

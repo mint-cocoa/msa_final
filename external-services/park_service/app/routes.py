@@ -1,13 +1,15 @@
 # park_service/app/routes.py
 from fastapi import APIRouter, HTTPException, Depends
-from .models import ParkModel, ParkRead    
+from .models import ParkCreate, ParkRead    
 from .database import get_db
 from bson import ObjectId
+from typing import List
+
 
 router = APIRouter()
 
 @router.post("/", response_model=ParkRead)
-async def create_park(park: ParkModel, db=Depends(get_db)):
+async def create_park(park: ParkCreate, db=Depends(get_db)):
     existing_park = await db.parks.find_one({"name": park.name})
     if existing_park:
         raise HTTPException(status_code=400, detail="Park already exists")
@@ -15,6 +17,11 @@ async def create_park(park: ParkModel, db=Depends(get_db)):
     new_park = await db.parks.insert_one(park_data)
     created_park = await db.parks.find_one({"_id": new_park.inserted_id})
     return created_park
+
+@router.get("/", response_model=List[ParkRead])
+async def get_all_parks(db=Depends(get_db)):
+    parks = await db.parks.find().to_list(1000)
+    return parks
 
 @router.get("/{park_id}", response_model=ParkRead)
 async def get_park(park_id: str, db=Depends(get_db)):
@@ -27,4 +34,6 @@ async def get_park(park_id: str, db=Depends(get_db)):
     if not park:
         raise HTTPException(status_code=404, detail="Park not found")
     return park
+
+
 

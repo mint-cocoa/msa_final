@@ -14,7 +14,7 @@ ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", 30))
 
 @router.post("/", response_model=models.UserRead)
 async def create_user(user: models.UserCreate, db=Depends(get_db)):
-    existing_user = await utils.get_user_by_email(db, user.email)
+    existing_user = await db.users.find_one({"email": user.email})
     if existing_user:
         raise HTTPException(status_code=400, detail="Email already registered")
     new_user = await db.users.insert_one(user.model_dump(by_alias=True, exclude=["id"]))      

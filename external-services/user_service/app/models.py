@@ -23,11 +23,19 @@ class UserModel(BaseModel):
             ObjectId: lambda oid: str(oid),
         }
     
-class UserCreate(UserModel):
-    pass
-
-class UserRead(UserModel):
-    password: Optional[str] = None
+class UserCreate(BaseModel):
+    email: EmailStr
+    password: str   
+    is_admin: Optional[bool] = False
+    created_at: datetime
+    updated_at: datetime
+    
+class UserRead(BaseModel):
+    id: Optional[PyObjectId] = Field(alias="_id", default=None)
+    email: EmailStr
+    is_admin: Optional[bool] = False
+    created_at: datetime
+    updated_at: datetime
 
 class UserLogin(BaseModel):
     email: EmailStr

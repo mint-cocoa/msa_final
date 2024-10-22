@@ -1,20 +1,21 @@
-from pydantic import BaseModel, EmailStr, ConfigDict ,BeforeValidator ,Field
-from typing import Optional
+from pydantic import BaseModel, EmailStr, ConfigDict, BeforeValidator, Field
+from typing import Optional, List
 from datetime import datetime
 from bson import ObjectId
-from typing import Annotated ,List
+from typing import Annotated
+
 PyObjectId = Annotated[str, BeforeValidator(str)]
 
 class TicketTypeModel(BaseModel):
-    id: Optional[PyObjectId] = Field(alias="_id", default=None)
     name: str
     description: str
     price: float
-    
+    allowed_facilities: List[PyObjectId] = []  # FacilityModel의 ID 리스트
+
     class Config(ConfigDict):
         populate_by_name = True
-        arbitrary_types_allowed=True
-        json_encoders = {
+        arbitrary_types_allowed = True
+        json_encoders = {   
             datetime: lambda dt: dt.isoformat(),
             ObjectId: lambda oid: str(oid),
         }
@@ -28,15 +29,20 @@ class ParkModel(BaseModel):
     
     class Config(ConfigDict):
         populate_by_name = True
-        arbitrary_types_allowed=True
+        arbitrary_types_allowed = True
         json_encoders = {
             datetime: lambda dt: dt.isoformat(),
             ObjectId: lambda oid: str(oid),
         }
-
-class ParkRead(ParkModel):
+        
+class ParkCreate(BaseModel):
     name: str
     location: str
     description: str
     ticket_types: List[TicketTypeModel] = []
+    
 
+class ParkRead(ParkModel):
+    id: PyObjectId
+    created_at: datetime
+    updated_at: datetime

@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
       - name: facility-service
-        image: kasd0134/msa-facility-service:latest
+        image: kasd0134/msa-facilityservice:latest
         ports:
         - containerPort: 8000
         env:

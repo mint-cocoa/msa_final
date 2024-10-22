@@ -12,4 +12,4 @@ app = FastAPI(
 def read_root():
     return {"message": "Welcome to the Ticket Service"}
 
-app.include_router(ticket_router, prefix="/tickets")  # '/api' 대신 '/tickets'를 사용
+app.include_router(ticket_router, prefix="/api")
