@@ -1,5 +1,14 @@
 fastapi
 uvicorn
 motor
-pydantic
 python-dotenv
+fastapi
+uvicorn
+psycopg2-binary
+pydantic[email]
+python-dotenv
+motor
+python-jose
+passlib[bcrypt]
+python-multipart
+bcrypt

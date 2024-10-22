@@ -23,7 +23,10 @@ async def create_user(user: models.UserCreate, db=Depends(get_db)):
 
 @router.get("/{user_id}", response_model=models.UserRead)
 async def get_user(user_id: str, db=Depends(get_db)):
-    # 사용자 조회 로직...
+    user = await db.users.find_one({"_id": ObjectId(user_id)})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    return user
 
 @router.post("/auth/login")
 def login_for_access_token(db=Depends(get_db), form_data: OAuth2PasswordRequestForm = Depends()):
