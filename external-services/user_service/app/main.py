@@ -6,7 +6,8 @@ from .routes import router as user_router
 app = FastAPI(
     title="User Service",
     description="Service for managing users",
-    version="1.0.0"
+    version="1.0.0",
+    root_path="/users"
 )
 
 @app.get("/")

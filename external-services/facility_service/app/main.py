@@ -5,7 +5,8 @@ from .routes import router as facility_router
 app = FastAPI(
     title="Facility Service",
     description="Service for managing facilities",
-    version="1.0.0"
+    version="1.0.0",
+    root_path="/facilities"
 )
 
 @app.get("/")

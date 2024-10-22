@@ -5,7 +5,8 @@ from .routes import router as park_router
 app = FastAPI(
     title="Park Service",
     description="Service for managing parks",
-    version="1.0.0"
+    version="1.0.0",
+    root_path="/parks"
 )
 
 @app.get("/")

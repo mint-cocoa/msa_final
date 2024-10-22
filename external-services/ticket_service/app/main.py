@@ -4,7 +4,8 @@ from .routes import router as ticket_router
 app = FastAPI(
     title="Ticket Service",
     description="Service for managing tickets",
-    version="1.0.0"
+    version="1.0.0",
+    root_path="/tickets"
 )
 
 @app.get("/")

@@ -11,4 +11,4 @@ motor
 python-jose
 passlib[bcrypt]
 python-multipart
-bcrypt
+bcrypt  
