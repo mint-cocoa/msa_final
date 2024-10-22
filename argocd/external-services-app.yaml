@@ -1,90 +1,14 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: user-service
+  name: external-services
   namespace: argocd
 spec:
   project: default
   source:
     repoURL: 'https://github.com/mint-cocoa/msa_final.git'
     targetRevision: HEAD
-    path: 'external-services/k8s/user-service'
-  destination:
-    server: 'https://kubernetes.default.svc'
-    namespace: default
-  syncPolicy:
-    automated:
-      prune: true
-      selfHeal: true
----
-apiVersion: argoproj.io/v1alpha1
-kind: Application
-metadata:
-  name: park-service
-  namespace: argocd
-spec:
-  project: default
-  source:
-    repoURL: 'https://github.com/mint-cocoa/msa_final.git'
-    targetRevision: HEAD
-    path: 'external-services/k8s/park-service'
-  destination:
-    server: 'https://kubernetes.default.svc'
-    namespace: default
-  syncPolicy:
-    automated:
-      prune: true
-      selfHeal: true
----
-apiVersion: argoproj.io/v1alpha1
-kind: Application
-metadata:
-  name: facility-service
-  namespace: argocd
-spec:
-  project: default
-  source:
-    repoURL: 'https://github.com/mint-cocoa/msa_final.git'
-    targetRevision: HEAD
-    path: 'external-services/k8s/facility-service'
-  destination:
-    server: 'https://kubernetes.default.svc'
-    namespace: default
-  syncPolicy:
-    automated:
-      prune: true
-      selfHeal: true
----
-apiVersion: argoproj.io/v1alpha1
-kind: Application
-metadata:
-  name: ticket-service
-  namespace: argocd
-spec:
-  project: default
-  source:
-    repoURL: 'https://github.com/mint-cocoa/msa_final.git'
-    targetRevision: HEAD
-    path: 'external-services/k8s/ticket-service'
-  destination:
-    server: 'https://kubernetes.default.svc'
-    namespace: default
-  syncPolicy:
-    automated:
-      prune: true
-      selfHeal: true
----
-apiVersion: argoproj.io/v1alpha1
-kind: Application
-metadata:
-  name: ingress-config
-  namespace: argocd
-spec:
-  project: default
-  source:
-    repoURL: 'https://github.com/mint-cocoa/msa_final.git'
-    targetRevision: HEAD
-    path: 'external-services/k8s/ingress'
+    path: 'external-services/k8s'
   destination:
     server: 'https://kubernetes.default.svc'
     namespace: default
