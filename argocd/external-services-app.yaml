@@ -6,7 +6,7 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: 'https://github.com/kasd0134/msa-external-services.git'
+    repoURL: 'https://github.com/mint-cocoa/msa_final.git'
     targetRevision: HEAD
     path: 'external-services/k8s/user-service'
   destination:
@@ -25,7 +25,7 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: 'https://github.com/kasd0134/msa-external-services.git'
+    repoURL: 'https://github.com/mint-cocoa/msa_final.git'
     targetRevision: HEAD
     path: 'external-services/k8s/park-service'
   destination:
@@ -44,7 +44,7 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: 'https://github.com/kasd0134/msa-external-services.git'
+    repoURL: 'https://github.com/mint-cocoa/msa_final.git'
     targetRevision: HEAD
     path: 'external-services/k8s/facility-service'
   destination:
@@ -63,7 +63,7 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: 'https://github.com/kasd0134/msa-external-services.git'
+    repoURL: 'https://github.com/mint-cocoa/msa_final.git'
     targetRevision: HEAD
     path: 'external-services/k8s/ticket-service'
   destination:
@@ -82,7 +82,7 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: 'https://github.com/kasd0134/msa-external-services.git'
+    repoURL: 'https://github.com/mint-cocoa/msa_final.git'
     targetRevision: HEAD
     path: 'external-services/k8s/ingress'
   destination:
