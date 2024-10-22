@@ -13,4 +13,4 @@ app = FastAPI(
 def read_root():
     return {"message": "Welcome to the User Service"}
 
-app.include_router(user_router, prefix="/api")
+app.include_router(user_router, prefix="/users")  # '/api' 대신 '/users'를 사용

@@ -8,10 +8,6 @@ from fastapi.security import OAuth2PasswordBearer
 from jose import jwt, JWTError
 from .config import SECRET_KEY, ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES
 
-router = APIRouter(
-    prefix="/tickets",
-    tags=["Tickets"]
-)
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 

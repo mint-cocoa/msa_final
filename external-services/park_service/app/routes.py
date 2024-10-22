@@ -6,7 +6,7 @@ from bson import ObjectId
 
 router = APIRouter()
 
-@router.post("/parks", response_model=ParkRead)
+@router.post("/", response_model=ParkRead)
 async def create_park(park: ParkModel, db=Depends(get_db)):
     existing_park = await db.parks.find_one({"name": park.name})
     if existing_park:
@@ -16,7 +16,7 @@ async def create_park(park: ParkModel, db=Depends(get_db)):
     created_park = await db.parks.find_one({"_id": new_park.inserted_id})
     return created_park
 
-@router.get("/parks/{park_id}", response_model=ParkRead)
+@router.get("/{park_id}", response_model=ParkRead)
 async def get_park(park_id: str, db=Depends(get_db)):
     try:
         park_object_id = ObjectId(park_id)

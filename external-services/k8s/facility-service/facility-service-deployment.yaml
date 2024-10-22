@@ -1,0 +1,36 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: facility-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: facility-service
+  template:
+    metadata:
+      labels:
+        app: facility-service
+    spec:
+      containers:
+      - name: facility-service
+        image: kasd0134/msa-facility-service:latest
+        ports:
+        - containerPort: 8000
+        env:
+        - name: MONGODB_URI
+          value: "mongodb://root:example@mongodb:27017/facilities?authSource=admin"
+        - name: DATABASE_NAME
+          value: "facilities"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: facility-service
+spec:
+  selector:
+    app: facility-service
+  ports:
+    - protocol: TCP
+      port: 8000
+      targetPort: 8000

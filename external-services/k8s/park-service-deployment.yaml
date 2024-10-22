@@ -1,0 +1,36 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: park-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: park-service
+  template:
+    metadata:
+      labels:
+        app: park-service
+    spec:
+      containers:
+      - name: park-service
+        image: kasd0134/msa-parkservice:latest
+        ports:
+        - containerPort: 8000
+        env:
+        - name: MONGODB_URI
+          value: "mongodb://root:example@mongodb:27017/parks?authSource=admin"
+        - name: DATABASE_NAME
+          value: "parks"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: park-service
+spec:
+  selector:
+    app: park-service
+  ports:
+    - protocol: TCP
+      port: 8000
+      targetPort: 8000

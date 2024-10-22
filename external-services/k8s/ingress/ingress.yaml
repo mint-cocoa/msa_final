@@ -1,0 +1,46 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: theme-park-ingress
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+spec:
+  rules:
+  - http:
+      paths:
+      - path: /users(/|$)(.*)
+        pathType: Prefix
+        backend:
+          service:
+            name: user-service
+            port: 
+              number: 8000
+      - path: /parks(/|$)(.*)
+        pathType: Prefix
+        backend:
+          service:
+            name: park-service
+            port: 
+              number: 8000
+      - path: /facilities(/|$)(.*)
+        pathType: Prefix
+        backend:
+          service:
+            name: facility-service
+            port: 
+              number: 8000
+      - path: /tickets(/|$)(.*)
+        pathType: Prefix
+        backend:
+          service:
+            name: ticket-service
+            port: 
+              number: 8000
+      - path: /inpark(/|$)(.*)
+        pathType: Prefix
+        backend:
+          service:
+            name: inpark-service
+            port: 
+              number: 8000

@@ -6,19 +6,24 @@ from datetime import timedelta
 from fastapi.security import OAuth2PasswordRequestForm
 from .database import get_db
 import os
+from bson import ObjectId
 
 router = APIRouter()
 
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", 30))
 
-@router.post("/users")
-async def create_user(user: models.UserModel, db=Depends(get_db)):
+@router.post("/", response_model=models.UserRead)
+async def create_user(user: models.UserCreate, db=Depends(get_db)):
     existing_user = await utils.get_user_by_email(db, user.email)
     if existing_user:
         raise HTTPException(status_code=400, detail="Email already registered")
     new_user = await db.users.insert_one(user.model_dump(by_alias=True, exclude=["id"]))      
     created_user = await db.users.find_one({"_id": new_user.inserted_id})
     return created_user
+
+@router.get("/{user_id}", response_model=models.UserRead)
+async def get_user(user_id: str, db=Depends(get_db)):
+    # 사용자 조회 로직...
 
 @router.post("/auth/login")
 def login_for_access_token(db=Depends(get_db), form_data: OAuth2PasswordRequestForm = Depends()):
