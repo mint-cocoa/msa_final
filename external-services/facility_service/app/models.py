@@ -23,13 +23,4 @@ class FacilityModel(BaseModel):
             ObjectId: lambda oid: str(oid),
         }
 
-class FacilityRead(FacilityModel):
-    id: PyObjectId
-    created_at: datetime
-    updated_at: datetime
 
-class FacilityCreate(FacilityModel):
-    pass
-
-class FacilityUpdate(FacilityModel):
-    pass

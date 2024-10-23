@@ -19,17 +19,15 @@ services:
     ports:
       - "6379:6379"
 
-  api_gateway:
-    build: ./api_gateway
-    container_name: api_gateway
-    ports:
-      - "8000:8000"
-    depends_on:
-      - park_service
-      - facility_service
+  user_service:
+    build: ./user_service
+    container_name: user_service
     environment:
-      - PARK_SERVICE_URL=http://park_service:8000
-      - FACILITY_SERVICE_URL=http://facility_service:8000
+      - MONGODB_URI=mongodb://root:example@mongodb:27017/users?authSource=admin
+      - DATABASE_NAME=users
+    depends_on:
+      - mongodb
+    
 
   park_service:
     build: ./park_service
@@ -55,6 +53,8 @@ services:
     environment:
       - MONGODB_URI=mongodb://root:example@mongodb:27017/tickets?authSource=admin
       - DATABASE_NAME=tickets
+    ports:
+      - "8011:8000" 
     depends_on:
       - mongodb
 

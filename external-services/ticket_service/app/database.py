@@ -7,23 +7,24 @@ from dotenv import load_dotenv
 load_dotenv()
 
 MONGODB_URI = os.getenv("MONGODB_URI", "mongodb://root:example@mongodb:27017/tickets?authSource=admin")
-DATABASE_NAME = os.getenv("DATABASE_NAME", "tickets")
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-async def get_database():
+
+
+async def get_database(database_name):
     try:
         client = AsyncIOMotorClient(MONGODB_URI)
         await client.admin.command('ismaster')
-        logger.info(f"Successfully connected to MongoDB: {DATABASE_NAME}")
-        return client[DATABASE_NAME]
+        logger.info(f"Successfully connected to MongoDB: {database_name}")
+        return client[database_name]
     except Exception as e:
         logger.error(f"Failed to connect to MongoDB: {e}")
         raise
 
-async def get_db():
-    db = await get_database()
+async def get_db(database_name):
+    db = await get_database(database_name)
     try:
         yield db
     finally:

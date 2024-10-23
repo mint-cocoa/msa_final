@@ -1,5 +1,5 @@
 from pydantic import BaseModel, EmailStr, ConfigDict, BeforeValidator, Field
-from typing import Optional, List
+from typing import Optional, List, Annotated
 from datetime import datetime
 from bson import ObjectId
 from typing import Annotated
@@ -10,7 +10,7 @@ class TicketTypeModel(BaseModel):
     name: str
     description: str
     price: float
-    allowed_facilities: List[PyObjectId] = []  # FacilityModel의 ID 리스트
+    allowed_facilities: List[str] = []  # FacilityModel의 ID 리스트
 
     class Config(ConfigDict):
         populate_by_name = True
@@ -42,7 +42,17 @@ class ParkCreate(BaseModel):
     ticket_types: List[TicketTypeModel] = []
     
 
-class ParkRead(ParkModel):
-    id: PyObjectId
-    created_at: datetime
-    updated_at: datetime
+class ParkRead(BaseModel):
+    id: Optional[PyObjectId] = Field(alias="_id", default=None)
+    name: str
+    location: str
+    description: str
+    ticket_types: List[TicketTypeModel] = []
+
+    class Config(ConfigDict):
+        populate_by_name = True
+        arbitrary_types_allowed = True
+        json_encoders = {
+            datetime: lambda dt: dt.isoformat(),
+            ObjectId: lambda oid: str(oid),
+        }

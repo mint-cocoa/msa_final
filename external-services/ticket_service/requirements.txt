@@ -17,3 +17,4 @@ pymongo
 python-jose
 qrcode
 Pillow
+typing

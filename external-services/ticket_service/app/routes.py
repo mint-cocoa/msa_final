@@ -1,17 +1,24 @@
 from fastapi import APIRouter, Depends, HTTPException
 from bson import ObjectId
 from .schemas import CreateTicketForm, TicketResponse, TicketUseResponse
-from .database import users_collection, parks_collection, ticket_collection
-from .utils import create_ticket, create_access_token
+from .database import get_db
 from datetime import datetime, timedelta
 from fastapi.security import OAuth2PasswordBearer
 from jose import jwt, JWTError
 from .config import SECRET_KEY, ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES
+from .utils import create_access_token 
 
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
-@router.post("/create_ticket", response_model=TicketResponse)
+facilities_collection = get_db("facilities")
+users_collection = get_db("users")
+parks_collection = get_db("parks")
+ticket_collection = get_db("tickets")
+
+
+router = APIRouter()
+@router.post("/", response_model=TicketResponse)
 def create_ticket_endpoint(form: CreateTicketForm):
     # 사용자 정보를 가져옵니다.
     user = users_collection.find_one({"_id": ObjectId(form.user_id)})
@@ -41,7 +48,7 @@ def create_ticket_endpoint(form: CreateTicketForm):
         "used": False
     }
 
-    result = create_ticket(ticket_data)
+    result = ticket_collection.insert_one(ticket_data)
 
     return {
         "ticket_id": str(result.inserted_id),

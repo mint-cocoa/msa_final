@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
       - name: ticket-service
-        image: kasd0134/msa-ticket-service:latest
+        image: kasd0134/msa-ticketservice:latest
         ports:
         - containerPort: 8000
         env:
