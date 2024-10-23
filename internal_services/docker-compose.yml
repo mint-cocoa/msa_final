@@ -1,72 +1,38 @@
 version: '3.8'
 
 services:
-  user_service:
-    build: ./user_service
-    ports:
-      - "8001:8000"
-    depends_on:
-      - db
-      - kafka
-
-  park_service:
-    build: ./park_service
-    ports:
-      - "8002:8000"
-    depends_on:
-      - db
-      - kafka
-
-  facility_service:
-    build: ./facility_service
-    ports:
-      - "8003:8000"
-    depends_on:
-      - db
-      - kafka
-
   ride_reservation_service:
     build: ./ride_reservation_service
     ports:
-      - "8004:8000"
+      - "8001:8000"
+    environment:
+      - KAFKA_SERVERS=kafka:9092
+      - REDIS_URL=redis://redis:6379
     depends_on:
-      - db
       - kafka
+      - redis
 
   notification_service:
     build: ./notification_service
     ports:
-      - "8005:8000"
+      - "8002:8000"
+    environment:
+      - KAFKA_SERVERS=kafka:9092
+      - REDIS_URL=redis://redis:6379
     depends_on:
       - kafka
+      - redis
 
   real_time_tracking_service:
     build: ./real_time_tracking_service
     ports:
-      - "8006:8000"
+      - "8003:8000"
+    environment:
+      - KAFKA_SERVERS=kafka:9092
+      - REDIS_URL=redis://redis:6379
     depends_on:
       - kafka
-
-  api_gateway:
-    build: ./api_gateway
-    ports:
-      - "8000:8000"
-    depends_on:
-      - user_service
-      - park_service
-      - facility_service
-      - ride_reservation_service
-      - notification_service
-      - real_time_tracking_service
-
-  db:
-    image: postgres:13
-    environment:
-      POSTGRES_USER: user
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: mydb
-    ports:
-      - "5432:5432"
+      - redis
 
   kafka:
     image: confluentinc/cp-kafka:latest
@@ -89,24 +55,13 @@ services:
     ports:
       - "6379:6379"
 
-  message_broker_service:
-    build: ./message_broker_service
+  kafka_service:
+    build: ./kafca_service
     ports:
-      - "8007:8000"
+      - "8004:8000"
+    environment:
+      - KAFKA_SERVERS=kafka:9092
+      - REDIS_URL=redis://redis:6379
     depends_on:
       - kafka
-
-  inpark_service:
-    build: ./inpark_service
-    ports:
-      - "8000:8000"
-    depends_on:
-      - user_service
-      - park_service
-      - facility_service
-      - ride_reservation_service
-      - notification_service
-      - real_time_tracking_service
-      - message_broker_service
       - redis
-      - kafka

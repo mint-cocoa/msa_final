@@ -1,4 +1,4 @@
-from common.config import redis_client
+
 
 async def process_notification(data):
     user_id = data.get("user_id")

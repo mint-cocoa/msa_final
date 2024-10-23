@@ -3,7 +3,6 @@ from kafka import KafkaProducer, KafkaConsumer
 import json
 import asyncio
 import os
-from .redis_client import add_to_queue
 
 app = FastAPI()
 
@@ -45,7 +44,6 @@ async def consume_messages():
 async def process_facility_queue(data):
     facility_id = data['facility_id']
     user_id = data['user_id']
-    await add_to_queue(facility_id, user_id)
     print(f"User {user_id} added to facility {facility_id} queue.")
 
 async def process_ride_reservation(data):

@@ -1,5 +1,5 @@
 import httpx
-from common.config import redis_client
+from .config import redis_client
 import time
 
 async def process_reservation(data):

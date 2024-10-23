@@ -1,5 +1,3 @@
-from common.config import get_kafka_consumer
-from .operations import process_reservation
 from kafka import KafkaConsumer
 import json
 import aioredis

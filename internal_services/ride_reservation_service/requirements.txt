@@ -2,4 +2,5 @@ fastapi
 uvicorn
 kafka-python
 aioredis
-jose
+python-jose
+httpx
