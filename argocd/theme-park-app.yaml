@@ -1,14 +1,14 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: internal-services
+  name: theme-park-services
   namespace: argocd
 spec:
   project: default
   source:
     repoURL: 'https://github.com/mint-cocoa/msa_final.git'
     targetRevision: HEAD
-    path: 'internal_services/k8s'
+    path: 'k8s'
   destination:
     server: 'https://kubernetes.default.svc'
     namespace: default
@@ -16,3 +16,6 @@ spec:
     automated:
       prune: true
       selfHeal: true
+
+  
+
