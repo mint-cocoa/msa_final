@@ -4,54 +4,53 @@ metadata:
   name: theme-park-ingress
   annotations:
     kubernetes.io/ingress.class: traefik
-    traefik.ingress.kubernetes.io/router.middlewares: default-strip-prefix@kubernetes
 spec:
   rules:
   - http:
       paths:
-      - path: /users(/|$)(.*)
+      - path: /users
         pathType: Prefix
         backend:
           service:
             name: user-service
             port: 
               number: 8000
-      - path: /parks(/|$)(.*)
+      - path: /parks
         pathType: Prefix
         backend:
           service:
             name: park-service
             port: 
               number: 8000
-      - path: /facilities(/|$)(.*)
+      - path: /facilities
         pathType: Prefix
         backend:
           service:
             name: facility-service
             port: 
               number: 8000
-      - path: /tickets(/|$)(.*)
+      - path: /tickets
         pathType: Prefix
         backend:
           service:
             name: ticket-service
             port: 
               number: 8000
-      - path: /reservations(/|$)(.*)
+      - path: /reservations
         pathType: Prefix
         backend:
           service:
             name: ride-reservation-service
             port: 
               number: 8000
-      - path: /notifications(/|$)(.*)
+      - path: /notifications
         pathType: Prefix
         backend:
           service:
             name: notification-service
             port: 
               number: 8000
-      - path: /redis(/|$)(.*)
+      - path: /redis
         pathType: Prefix
         backend:
           service:
