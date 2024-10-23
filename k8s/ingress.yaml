@@ -51,13 +51,6 @@ spec:
             name: notification-service
             port: 
               number: 8000
-      - path: /real-time-tracking(/|$)(.*)
-        pathType: Prefix
-        backend:
-          service:
-            name: real-time-tracking-service
-            port: 
-              number: 8000
       - path: /redis(/|$)(.*)
         pathType: Prefix
         backend:

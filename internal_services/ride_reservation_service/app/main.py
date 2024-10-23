@@ -1,10 +1,9 @@
 import os
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI
 import aio_pika
-import json
-from .dependencies import get_current_user
 import aioredis
 from .routes import router as ride_reservation_router
+from .database import init_redis, close_redis
 
 app = FastAPI(
     title="Ride Reservation Service",
@@ -21,11 +20,12 @@ async def startup_event():
     app.state.redis = await aioredis.from_url(REDIS_URL, encoding="utf-8", decode_responses=True)
     app.state.rabbitmq_connection = await aio_pika.connect_robust(RABBITMQ_URL)
     app.state.rabbitmq_channel = await app.state.rabbitmq_connection.channel()
+    await init_redis()
 
 @app.on_event("shutdown")
 async def shutdown_event():
-    await app.state.redis.close()
     await app.state.rabbitmq_connection.close()
+    await close_redis()
 
 @app.get("/")
 def read_root():
