@@ -10,38 +10,31 @@ spec:
   rules:
   - http:
       paths:
-      - path: /users(/|$)(.*)
+      - path: /users
         pathType: Prefix
         backend:
           service:
             name: user-service
             port: 
               number: 8000
-      - path: /parks(/|$)(.*)
+      - path: /parks
         pathType: Prefix
         backend:
           service:
             name: park-service
             port: 
               number: 8000
-      - path:  (/|$)(.*)
+      - path: /facilities
         pathType: Prefix
         backend:
           service:
             name: facility-service
             port: 
               number: 8000
-      - path: /tickets(/|$)(.*)
+      - path: /tickets
         pathType: Prefix
         backend:
           service:
             name: ticket-service
-            port: 
-              number: 8000
-      - path: /inpark(/|$)(.*)
-        pathType: Prefix
-        backend:
-          service:
-            name: inpark-service
             port: 
               number: 8000
