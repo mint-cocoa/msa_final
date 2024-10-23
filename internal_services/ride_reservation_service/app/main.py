@@ -1,6 +1,6 @@
 import os
 from fastapi import FastAPI, HTTPException, Depends
-from kafka import KafkaProducer
+import aio_pika
 import json
 from .dependencies import get_current_user
 import aioredis
@@ -13,19 +13,19 @@ app = FastAPI(
     root_path="/reservations"
 )
 
-KAFKA_SERVERS = os.getenv("KAFKA_SERVERS", "kafka:9092").split(",")
+RABBITMQ_URL = os.getenv("RABBITMQ_URL", "amqp://guest:guest@rabbitmq:5672/")
 REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379")
-
-producer = KafkaProducer(bootstrap_servers=KAFKA_SERVERS,
-                         value_serializer=lambda v: json.dumps(v).encode('utf-8'))
 
 @app.on_event("startup")
 async def startup_event():
     app.state.redis = await aioredis.from_url(REDIS_URL, encoding="utf-8", decode_responses=True)
+    app.state.rabbitmq_connection = await aio_pika.connect_robust(RABBITMQ_URL)
+    app.state.rabbitmq_channel = await app.state.rabbitmq_connection.channel()
 
 @app.on_event("shutdown")
 async def shutdown_event():
     await app.state.redis.close()
+    await app.state.rabbitmq_connection.close()
 
 @app.get("/")
 def read_root():

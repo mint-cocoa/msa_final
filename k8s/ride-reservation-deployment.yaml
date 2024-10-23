@@ -18,11 +18,10 @@ spec:
         ports:
         - containerPort: 8000
         env:
-        - name: KAFKA_SERVERS
-          value: "kafka:9092"
+        - name: RABBITMQ_URL
+          value: "amqp://guest:guest@rabbitmq:5672/"
         - name: REDIS_URL
           value: "redis://redis:6379"
-
         readinessProbe:
           tcpSocket:
             port: 8000

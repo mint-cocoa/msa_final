@@ -7,7 +7,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-ENV KAFKA_SERVERS=kafka:9092
+ENV RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
 ENV REDIS_URL=redis://redis:6379
 
 EXPOSE 8000
