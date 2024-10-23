@@ -3,6 +3,7 @@ from kafka import KafkaConsumer
 import json
 from .kafka_consumer import start_kafka_consumer
 import asyncio
+import threading
 
 app = FastAPI()
 
@@ -18,12 +19,9 @@ def consume_messages():
         notification = message.value
         send_notification(notification['user_id'], notification['message'])
 
-import threading
-threading.Thread(target=consume_messages, daemon=True).start()
-
 @app.on_event("startup")
 async def startup_event():
-    asyncio.create_task(start_kafka_consumer())
+    threading.Thread(target=start_kafka_consumer, daemon=True).start()
 
 @app.get("/health")
 async def health_check():

@@ -20,14 +20,13 @@ services:
       - "6379:6379"
 
   user_service:
-    build: ./user_service
+    build: ./user-service
     container_name: user_service
     environment:
       - MONGODB_URI=mongodb://root:example@mongodb:27017/users?authSource=admin
       - DATABASE_NAME=users
     depends_on:
       - mongodb
-    
 
   park_service:
     build: ./park_service
@@ -53,8 +52,6 @@ services:
     environment:
       - MONGODB_URI=mongodb://root:example@mongodb:27017/tickets?authSource=admin
       - DATABASE_NAME=tickets
-    ports:
-      - "8011:8000" 
     depends_on:
       - mongodb
 
