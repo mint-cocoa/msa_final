@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
       - name: ride-reservation-service
-        image: kasd0134/ridereservationservice:latest
+        image: kasd0134/msa-ridereservationservice:latest
         ports:
         - containerPort: 8000
         env:

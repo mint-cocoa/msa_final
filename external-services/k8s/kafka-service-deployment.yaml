@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
       - name: kafka-service
-        image: kasd0134/kafkaservice:latest
+        image: kasd0134/msa-kafkaservice:latest
         ports:
         - containerPort: 8000
         env:
