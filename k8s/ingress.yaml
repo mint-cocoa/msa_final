@@ -3,8 +3,8 @@ kind: Ingress
 metadata:
   name: theme-park-ingress
   annotations:
-    kubernetes.io/ingress.class: nginx
-    nginx.ingress.kubernetes.io/rewrite-target: /$2
+    kubernetes.io/ingress.class: traefik
+    traefik.ingress.kubernetes.io/router.middlewares: default-strip-prefix@kubernetes
 spec:
   rules:
   - http:
