@@ -54,7 +54,7 @@ spec:
       port: 8000
       targetPort: 8000
 ---
-apiVersion: autoscaling/v2beta1
+apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
   name: ticket-service-hpa
