@@ -21,5 +21,12 @@ async def get_database():
     except Exception as e:
         logger.error(f"Failed to connect to MongoDB: {e}")
         raise
-    
+
+
+async def get_db():
+    db = await get_database()  # 데이터베이스 연결 객체를 가져옴
+    try:
+        yield db 
+    finally:
+        pass
     

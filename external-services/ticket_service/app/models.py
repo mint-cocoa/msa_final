@@ -1,5 +1,6 @@
 from pydantic import BaseModel, Field
-from typing import Optional
+from typing import Optional, List
+from datetime import datetime
 
 
 class CreateTicketForm(BaseModel):
@@ -12,3 +13,30 @@ class TicketResponse(BaseModel):
     
     class Config:
         orm_mode = True
+
+class User(BaseModel):
+    id: str
+    username: str
+    email: str
+
+class Park(BaseModel):
+    id: str
+    name: str
+    location: str
+
+class Facility(BaseModel):
+    id: str
+    name: str
+    park_id: str
+
+class Ticket(BaseModel):
+    id: str
+    user_id: str
+    park_id: str
+    ticket_type_name: str
+    allowed_facilities: List[str]
+    purchase_date: datetime
+    amount: float
+    available_date: str
+    used: bool
+    used_at: Optional[datetime] = None

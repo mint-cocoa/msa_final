@@ -1,34 +1,28 @@
 from fastapi import APIRouter, Depends, HTTPException
 from bson import ObjectId
-
 from datetime import datetime, timedelta
 from fastapi.security import OAuth2PasswordBearer
 from jose import jwt, JWTError
 from .config import SECRET_KEY, ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES
 from .utils import create_access_token 
-from .models import CreateTicketForm, TicketResponse
+from .models import CreateTicketForm
 from motor.motor_asyncio import AsyncIOMotorClient
-from .database import get_database
-
+from .database import get_db
+from .external_api import get_user_info, get_park_info
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
 
 
 router = APIRouter()
 @router.post("/")
-async def create_ticket_endpoint(form: CreateTicketForm, db = Depends(get_database)):
-    # 컬렉션 참조
-    users_collection = db.users
-    parks_collection = db.parks
-    tickets_collection = db.tickets
+async def create_ticket_endpoint(form: CreateTicketForm, db = Depends(get_db)):
 
-    # 사용자 검색
-    user = await users_collection.findById(form.user_id)
+    user = await get_user_info(form.user_id)
     if not user:
-        raise HTTPException(status_code=404, detail="user not found.")
+        raise HTTPException(status_code=404, detail="user not found.")          
 
     # 공원 검색
-    park = await parks_collection.findById(form.park_id)
+    park = await get_park_info(form.park_id)
     if not park:
         raise HTTPException(status_code=404, detail="park not found.")
 
@@ -46,11 +40,10 @@ async def create_ticket_endpoint(form: CreateTicketForm, db = Depends(get_databa
         "allowed_facilities": park_ticket['allowed_facilities'],
         "purchase_date": datetime.utcnow().isoformat(),
         "amount": park_ticket['price'],
-        "available_date": form.available_date,
         "used": False
     }
 
-    result = await tickets_collection.insert_one(ticket_data)
+    result = await db["tickets"].insert_one(ticket_data)
 
     return {
         "ticket_id": str(result.inserted_id),
@@ -58,16 +51,15 @@ async def create_ticket_endpoint(form: CreateTicketForm, db = Depends(get_databa
     }
 
 @router.post("/use/{ticket_id}")
-async def use_ticket(ticket_id: str, db = Depends(get_database)):
-    tickets_collection = db.tickets
-    ticket = await tickets_collection.findById(ticket_id)
+async def use_ticket(ticket_id: str, db: AsyncIOMotorClient = Depends(get_db)):
+    ticket = await db["tickets"].find_one({"_id": ObjectId(ticket_id)})
     if not ticket:
         raise HTTPException(status_code=404, detail="ticket not found.")
     if ticket["used"]:
         raise HTTPException(status_code=400, detail="ticket already used.")
     
     # 티켓 사용 처리
-    await tickets_collection.updateOne(
+    await db["tickets"].update_one(
         {"_id": ObjectId(ticket_id)}, 
         {"$set": {"used": True, "used_at": datetime.utcnow().isoformat()}}
     )
@@ -92,7 +84,7 @@ async def use_ticket(ticket_id: str, db = Depends(get_database)):
     }
 
 @router.get("/verify_ticket")
-async def verify_ticket(token: str = Depends(oauth2_scheme), db: AsyncIOMotorClient = Depends(get_database)):
+async def verify_ticket(token: str = Depends(oauth2_scheme), db: AsyncIOMotorClient = Depends(get_db)):
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         ticket_id = payload.get("sub")
@@ -110,6 +102,7 @@ async def verify_ticket(token: str = Depends(oauth2_scheme), db: AsyncIOMotorCli
                 "park_id": payload.get("park_id"),
                 "ticket_type_name": payload.get("ticket_type_name"),
                 "allowed_facilities": payload.get("allowed_facilities")
+                
             }
         }
     except JWTError:
