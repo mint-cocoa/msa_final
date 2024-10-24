@@ -6,8 +6,8 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-MONGODB_URI = os.getenv("MONGODB_URI", "mongodb://root:example@mongodb:27017/users?authSource=admin")
-DATABASE_NAME = os.getenv("DATABASE_NAME", "users")
+MONGODB_URI = os.getenv("MONGODB_URI", "mongodb://root:example@mongodb:27017/external?authSource=admin")
+DATABASE_NAME = os.getenv("DATABASE_NAME", "external")
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

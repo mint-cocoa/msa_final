@@ -10,15 +10,16 @@ class TicketTypeModel(BaseModel):
     name: str
     description: str
     price: float
-    allowed_facilities: List[str] = []  # FacilityModel의 ID 리스트
+    allowed_facilities: List[PyObjectId] = []  # ObjectId 문자열 리스트로 변경
 
-    class Config(ConfigDict):
-        populate_by_name = True
-        arbitrary_types_allowed = True
-        json_encoders = {   
+    model_config = ConfigDict(
+        populate_by_name=True,
+        arbitrary_types_allowed=True,
+        json_encoders={
             datetime: lambda dt: dt.isoformat(),
             ObjectId: lambda oid: str(oid),
         }
+    )
 
 class ParkModel(BaseModel):
     id: Optional[PyObjectId] = Field(alias="_id", default=None)
