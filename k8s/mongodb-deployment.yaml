@@ -12,6 +12,8 @@ spec:
       labels:
         app: mongodb
     spec:
+      nodeSelector:
+        kubernetes.io/arch: amd
       containers:
       - name: mongodb
         image: mongo:latest
