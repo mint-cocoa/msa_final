@@ -1,38 +1,25 @@
 from fastapi import FastAPI, HTTPException
 import aioredis
 import os
+from .routes import router
 
-app = FastAPI()
+app = FastAPI(
+    title="Redis Service",
+    description="Service for managing redis",
+    version="1.0.0",
+    root_path="/redis"
+)
 
 REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379")
 
 @app.on_event("startup")
 async def startup_event():
+    # Redis 클라이언트를 애플리케이션 상태에 저장
     app.state.redis = await aioredis.from_url(REDIS_URL, encoding="utf-8", decode_responses=True)
 
 @app.on_event("shutdown")
 async def shutdown_event():
+    # 애플리케이션 종료 시 Redis 연결 닫기
     await app.state.redis.close()
 
-@app.get("/queue_position/{ride_id}/{user_id}")
-async def get_queue_position(ride_id: str, user_id: str):
-    queue_key = f"ride_queue:{ride_id}"
-    position = await app.state.redis.zrank(queue_key, user_id)
-    if position is None:
-        raise HTTPException(status_code=404, detail="User not in queue")
-    return {"position": position + 1}  # 1-based index
-
-@app.post("/dequeue/front/{ride_id}/{count}")
-async def dequeue_users(ride_id: str, count: int):
-    queue_key = f"ride_queue:{ride_id}"
-    # 큐의 맨 앞에서 특정 수(count)만큼 사용자 ID 가져오기
-    user_ids = await app.state.redis.zrange(queue_key, 0, count - 1)
-    
-    if not user_ids:
-        raise HTTPException(status_code=404, detail="Queue is empty or not enough users")
-    
-    # 가져온 사용자 ID 제거
-    for user_id in user_ids:
-        await app.state.redis.zrem(queue_key, user_id)
-    
-    return {"message": f"{len(user_ids)} users removed from queue for ride {ride_id}"}
+app.include_router(router, prefix="/api")  # ride_reservation_router 추가
