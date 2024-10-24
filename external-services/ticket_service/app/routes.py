@@ -23,14 +23,12 @@ async def create_ticket_endpoint(form: CreateTicketForm, db = Depends(get_databa
     tickets_collection = db.tickets
 
     # 사용자 검색
-    user = await users_collection.find_one({"_id": ObjectId(form.user_id)})
+    user = await users_collection.findById(form.user_id)
     if not user:
         raise HTTPException(status_code=404, detail="user not found.")
 
     # 공원 검색
-    park = await parks_collection.find_one({
-        "park_id": form.park_id
-    })
+    park = await parks_collection.findById(form.park_id)
     if not park:
         raise HTTPException(status_code=404, detail="park not found.")
 
@@ -60,15 +58,16 @@ async def create_ticket_endpoint(form: CreateTicketForm, db = Depends(get_databa
     }
 
 @router.post("/use/{ticket_id}")
-async def use_ticket(ticket_id: str, db: AsyncIOMotorClient = Depends(get_database)):
-    ticket = await db["tickets"].find_one({"_id": ObjectId(ticket_id)})
+async def use_ticket(ticket_id: str, db = Depends(get_database)):
+    tickets_collection = db.tickets
+    ticket = await tickets_collection.findById(ticket_id)
     if not ticket:
         raise HTTPException(status_code=404, detail="ticket not found.")
     if ticket["used"]:
         raise HTTPException(status_code=400, detail="ticket already used.")
     
     # 티켓 사용 처리
-    await db["tickets"].update_one(
+    await tickets_collection.updateOne(
         {"_id": ObjectId(ticket_id)}, 
         {"$set": {"used": True, "used_at": datetime.utcnow().isoformat()}}
     )
