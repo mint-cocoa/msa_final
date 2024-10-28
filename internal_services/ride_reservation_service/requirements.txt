@@ -3,5 +3,4 @@ uvicorn
 aioredis
 python-jose
 httpx
-aioredis
 aio_pika

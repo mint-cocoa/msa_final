@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, Depends, Request
 from .dependencies import get_current_user
-from .publisher import publish_reservation_request
+from .rabbitmq_publisher import publish_reservation_request
 import os
 
 router = APIRouter()

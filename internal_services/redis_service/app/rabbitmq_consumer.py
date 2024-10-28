@@ -12,16 +12,21 @@ async def get_redis():
 
 async def process_message(message):
     async with message.process():
-        reservation = json.loads(message.body.decode())
-        user_id = reservation["user_id"]
-        ride_id = reservation["ride_id"]
-        
-        redis = await get_redis()
-        
-        # Redis에 예약 정보 저장
-        queue_key = f"ride_queue:{ride_id}"
-        await redis.zadd(queue_key, {user_id: 0})  # 우선순위 큐에 사용자 추가
-        print(f"Reservation processed: User {user_id} added to ride {ride_id} queue.")
+        try:
+            reservation = json.loads(message.body.decode())
+            user_id = reservation["user_id"]
+            ride_id = reservation["ride_id"]
+            
+            redis = await get_redis()
+            
+            # Redis에 예약 정보 저장
+            queue_key = f"ride_queue:{ride_id}"
+            await redis.zadd(queue_key, {user_id: 0})  # 우선순위 큐에 사용자 추가
+            print(f"Reservation processed: User {user_id} added to ride {ride_id} queue.")
+        except (json.JSONDecodeError, KeyError) as e:
+            print(f"Error processing message: {e}")
+        except aioredis.RedisError as e:
+            print(f"Redis error: {e}")
 
 async def start_consumer():
     connection = await aio_pika.connect_robust(RABBITMQ_URL)
@@ -36,8 +41,8 @@ async def start_consumer():
     finally:
         await connection.close()
 
-def run_consumer():
-    asyncio.run(start_consumer())
+async def run_consumer():
+    await start_consumer()
 
 if __name__ == "__main__":
     run_consumer()
