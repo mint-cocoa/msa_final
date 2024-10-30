@@ -28,3 +28,11 @@ async def dequeue_users(ride_id: str, count: int, request: Request):
     
     return {"message": f"{len(user_ids)} users removed from queue for ride {ride_id}"}
 # 테스트 엔드포인트 추가
+
+@router.get("/queue_status/{ride_id}")
+async def get_queue_status(ride_id: str, request: Request):
+    queue_key = f"ride_queue:{ride_id}"
+    user_ids = await request.app.state.redis.zrange(queue_key, 0, -1)
+    if not user_ids:
+        raise HTTPException(status_code=404, detail="Queue is empty")
+    return {"user_ids": user_ids}
