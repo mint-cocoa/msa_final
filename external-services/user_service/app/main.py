@@ -2,6 +2,8 @@
 from fastapi import FastAPI
 from .routes import router as user_router
 from .database import Database
+from common.rabbitmq import RabbitMQConnection
+import logging
 
 app = FastAPI(
     title="User Service",
@@ -10,16 +12,20 @@ app = FastAPI(
     root_path="/users"
 )
 
+@app.on_event("startup")
+async def startup_event():
+    await Database.connect_db()
+    await RabbitMQConnection.connect()
+    logging.info("User Service started")
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    await Database.close_db()
+    await RabbitMQConnection.close()
+    logging.info("User Service shutdown")
+
 @app.get("/")
 def read_root():
     return {"message": "Welcome to the User Service"}
 
-@app.on_event("startup")
-async def startup_db_client():
-    await Database.connect_db()
-
-@app.on_event("shutdown")
-async def shutdown_db_client():
-    await Database.close_db()
-  
-app.include_router(user_router, prefix="/api")  # '/api' 대신 '/users'를 사용
+app.include_router(user_router, prefix="/api")

@@ -9,10 +9,8 @@ PyObjectId = Annotated[str, BeforeValidator(str)]
 class FacilityModel(BaseModel):
     id: Optional[PyObjectId] = Field(alias="_id", default=None)
     name: str
-    is_operating: bool
     description: str
-    open_time: datetime
-    close_time: datetime    
+    status: str
     max_queue_capacity: int
     
     class Config(ConfigDict):

@@ -1,18 +1,31 @@
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Request
 from .database import get_db
 from bson import ObjectId
 from . import models
 from typing import List
+from common.publisher import publish_structure_update
 
 router = APIRouter()
 
 @router.post("/", response_model=models.FacilityModel)
-async def create_facility(facility: models.FacilityModel, db=Depends(get_db)):
+async def create_facility(facility: models.FacilityModel, request: Request, db=Depends(get_db)):
     existing_facility = await db.facilities.find_one({"name": facility.name})
     if existing_facility:
         raise HTTPException(status_code=400, detail="시설이 이미 존재합니다")
     new_facility = await db.facilities.insert_one(facility.dict(by_alias=True, exclude={"id"}))
     created_facility = await db.facilities.find_one({"_id": new_facility.inserted_id})
+    
+    # 구조 업데이트 메시지 발행
+    await publish_structure_update(
+        request.app.state.rabbitmq_channel,
+        {
+            "action": "create",
+            "node_type": "facility",
+            "reference_id": str(new_facility.inserted_id),
+            "name": facility.name
+        }
+    )
+    
     return created_facility
 
 @router.get("/{facility_id}", response_model=models.FacilityModel)

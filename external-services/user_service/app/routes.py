@@ -1,30 +1,41 @@
 # user_service/app/routes.py
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Request
 from . import utils, models
-from passlib.context import CryptContext
 from datetime import timedelta
 from fastapi.security import OAuth2PasswordRequestForm
 from .database import get_db
 import os
 from bson import ObjectId
+from common.publisher import publish_structure_update
 
 router = APIRouter()
 
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", 30))
 
 @router.post("/", response_model=models.UserRead)
-async def create_user(user: models.UserCreate, db=Depends(get_db)):
+async def create_user(user: models.UserCreate, request: Request, db=Depends(get_db)):
     existing_user = await db.users.find_one({"email": user.email})
     if existing_user:
         raise HTTPException(status_code=400, detail="Email already registered")
     
-    # 비밀번호 해시화
     hashed_password = utils.encrypt_password(user.password)
     user_data = user.model_dump(by_alias=True, exclude=["id"])
-    user_data["password"] = hashed_password  # 해시화된 비밀번호로 교체
+    user_data["password"] = hashed_password
     
     new_user = await db.users.insert_one(user_data)      
     created_user = await db.users.find_one({"_id": new_user.inserted_id})
+    
+    # 구조 업데이트 메시지 발행
+    await publish_structure_update(
+        request.app.state.rabbitmq_channel,
+        {
+            "action": "create",
+            "node_type": "user",
+            "reference_id": str(new_user.inserted_id),
+            "name": user.email
+        }
+    )
+    
     return created_user
 
 @router.get("/{user_id}", response_model=models.UserRead)

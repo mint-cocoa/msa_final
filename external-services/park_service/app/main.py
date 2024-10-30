@@ -1,6 +1,8 @@
 # park_service/app/main.py
 from fastapi import FastAPI
 from .routes import router as park_router
+from common.rabbitmq import RabbitMQConnection
+import logging
 
 app = FastAPI(
     title="Park Service",
@@ -8,6 +10,16 @@ app = FastAPI(
     version="1.0.0",
     root_path="/parks"
 )
+
+@app.on_event("startup")
+async def startup_event():
+    await RabbitMQConnection.connect()
+    logging.info("Park Service started")
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    await RabbitMQConnection.close()
+    logging.info("Park Service shutdown")
 
 @app.get("/")
 def read_root():
