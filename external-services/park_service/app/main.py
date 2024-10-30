@@ -1,28 +1,36 @@
 # park_service/app/main.py
 from fastapi import FastAPI
-from .routes import router as park_router
-from common.rabbitmq import RabbitMQConnection
-import logging
+import aio_pika
+import os
+from .routes import router
+from .database import Database
+from .rabbitmq import RabbitMQPublisher
 
 app = FastAPI(
     title="Park Service",
-    description="Service for managing parks",
+    description="Service for managing theme parks",
     version="1.0.0",
     root_path="/parks"
 )
 
+RABBITMQ_URL = os.getenv("RABBITMQ_URL", "amqp://guest:guest@rabbitmq:5672/")
+
 @app.on_event("startup")
 async def startup_event():
-    await RabbitMQConnection.connect()
-    logging.info("Park Service started")
+    # 데이터베이스 연결 설정
+    await Database.connect_db()
+    
+    # RabbitMQ 연결 설정
+    app.state.rabbitmq_connection = await aio_pika.connect_robust(RABBITMQ_URL)
+    app.state.rabbitmq_publisher = RabbitMQPublisher(app.state.rabbitmq_connection)
 
 @app.on_event("shutdown")
 async def shutdown_event():
-    await RabbitMQConnection.close()
-    logging.info("Park Service shutdown")
+    # 데이터베이스 연결 종료
+    await Database.close_db()
+    
+    # RabbitMQ 연결 종료
+    await app.state.rabbitmq_publisher.close()
+    await app.state.rabbitmq_connection.close()
 
-@app.get("/")
-def read_root():
-    return {"message": "Welcome to the Park Service"}
-
-app.include_router(park_router, prefix="/api")
+app.include_router(router, prefix="/api")

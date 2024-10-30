@@ -1,42 +1,78 @@
 from fastapi import APIRouter, HTTPException, Depends, Request
+from .models import FacilityCreate, FacilityUpdate
 from .database import get_db
-from bson import ObjectId
-from . import models
-from typing import List
-from common.publisher import publish_structure_update
+from .crud import create_facility, update_facility, delete_facility, get_facility
+import httpx
 
 router = APIRouter()
 
-@router.post("/", response_model=models.FacilityModel)
-async def create_facility(facility: models.FacilityModel, request: Request, db=Depends(get_db)):
-    existing_facility = await db.facilities.find_one({"name": facility.name})
-    if existing_facility:
-        raise HTTPException(status_code=400, detail="시설이 이미 존재합니다")
-    new_facility = await db.facilities.insert_one(facility.dict(by_alias=True, exclude={"id"}))
-    created_facility = await db.facilities.find_one({"_id": new_facility.inserted_id})
+@router.post("/facilities/create")
+async def create_facility_endpoint(facility: FacilityCreate, request: Request):
+    db = await get_db()
+    facility_id = await create_facility(db, facility)
     
-    # 구조 업데이트 메시지 발행
-    await publish_structure_update(
-        request.app.state.rabbitmq_channel,
-        {
-            "action": "create",
-            "node_type": "facility",
-            "reference_id": str(new_facility.inserted_id),
-            "name": facility.name
-        }
+    await request.app.state.rabbitmq_publisher.publish_facility_event(
+        action="create",
+        facility_id=str(facility_id),
+        name=facility.name,
+        parent_id=str(facility.park_id)
     )
     
-    return created_facility
+    return {"id": str(facility_id)}
 
-@router.get("/{facility_id}", response_model=models.FacilityModel)
-async def get_facility(facility_id: str, db=Depends(get_db)):
-    facility = await db.facilities.find_one({"_id": ObjectId(facility_id)})
-    if not facility:
-        raise HTTPException(status_code=404, detail="시설을 찾을 수 없습니다")
-    return facility
+@router.post("/facilities/{facility_id}/update")
+async def update_facility_endpoint(facility_id: str, facility: FacilityUpdate, request: Request):
+    async with httpx.AsyncClient() as client:
+        response = await client.post(
+            f"{STRUCTURE_MANAGER_URL}/api/validate/facility-update/{facility_id}"
+        )
+        if response.status_code != 200:
+            raise HTTPException(status_code=400, detail="Failed to validate update")
+        
+        validation = response.json()
+        if not validation["can_update"]:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Cannot update facility. Has {validation['active_reservations_count']} active reservations."
+            )
+    
+    db = await get_db()
+    success = await update_facility(db, facility_id, facility)
+    
+    if success:
+        await request.app.state.rabbitmq_publisher.publish_facility_event(
+            action="update",
+            facility_id=facility_id,
+            name=facility.name,
+            parent_id=str(facility.park_id)
+        )
+        return {"message": "Facility updated successfully"}
+    raise HTTPException(status_code=404, detail="Facility not found")
 
-@router.get("/operating/all", response_model=List[models.FacilityModel])
-async def get_operating_facilities(db=Depends(get_db)):
-    facilities = await db.facilities.find({"is_operating": True}).to_list(1000)
-    return facilities
+@router.post("/facilities/{facility_id}/delete")
+async def delete_facility_endpoint(facility_id: str, request: Request):
+    async with httpx.AsyncClient() as client:
+        response = await client.post(
+            f"{STRUCTURE_MANAGER_URL}/api/validate/facility-delete/{facility_id}"
+        )
+        if response.status_code != 200:
+            raise HTTPException(status_code=400, detail="Failed to validate deletion")
+        
+        validation = response.json()
+        if not validation["can_delete"]:
+            raise HTTPException(
+                status_code=400, 
+                detail="Cannot delete facility with active reservations"
+            )
+    
+    db = await get_db()
+    success = await delete_facility(db, facility_id)
+    
+    if success:
+        await request.app.state.rabbitmq_publisher.publish_facility_event(
+            action="delete",
+            facility_id=facility_id
+        )
+        return {"message": "Facility deleted successfully"}
+    raise HTTPException(status_code=404, detail="Facility not found")
 

@@ -9,6 +9,9 @@ from .models import CreateTicketForm
 from motor.motor_asyncio import AsyncIOMotorClient
 from .database import get_db
 from .external_api import get_user_info, get_park_info
+from fastapi import Request
+import httpx
+
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
 
@@ -107,3 +110,53 @@ async def verify_ticket(token: str = Depends(oauth2_scheme), db: AsyncIOMotorCli
         }
     except JWTError:
         raise HTTPException(status_code=401, detail="invalid token.")
+
+@router.post("/validate/{ticket_id}")
+async def validate_ticket(
+    ticket_id: str,
+    facility_id: str,
+    request: Request
+):
+    db = await get_db()
+    ticket = await db.tickets.find_one({"_id": ObjectId(ticket_id)})
+    
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Ticket not found")
+        
+    # Structure Manager에서 접근 권한 확인
+    async with httpx.AsyncClient() as client:
+        response = await client.get(
+            f"{STRUCTURE_MANAGER_URL}/api/access-control/{ticket['ticket_type_id']}"
+        )
+        
+        if response.status_code != 200:
+            raise HTTPException(status_code=403, detail="Access control not found")
+            
+        access_control = response.json()
+        if ObjectId(facility_id) not in [ObjectId(fid) for fid in access_control['facility_ids']]:
+            raise HTTPException(status_code=403, detail="Access denied to this facility")
+    
+    return {"valid": True, "ticket": ticket}
+
+@router.put("/ticket-types/{ticket_type_id}")
+async def update_ticket_type(ticket_type_id: str, ticket_type: TicketTypeUpdate, request: Request):
+    # Structure Manager에 검증 요청
+    async with httpx.AsyncClient() as client:
+        response = await client.post(
+            f"{STRUCTURE_MANAGER_URL}/api/validate/ticket-type-update/{ticket_type_id}"
+        )
+        if response.status_code != 200:
+            raise HTTPException(status_code=400, detail="Failed to validate update")
+        
+        validation = response.json()
+        if not validation["can_update"]:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Cannot update ticket type. Has {validation['active_tickets_count']} active tickets."
+            )
+    
+    db = await get_db()
+    result = await db.ticket_types.update_one(
+        {"_id": ObjectId(ticket_type_id)},
+        {"$set": ticket_type.dict(exclude_unset=True)}
+    )

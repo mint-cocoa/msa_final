@@ -1,0 +1,84 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: structure-manager
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: structure-manager
+  template:
+    metadata:
+      labels:
+        app: structure-manager
+    spec:
+      containers:
+      - name: structure-manager
+        image: kasd0134/msa-structuremanager:latest
+        ports:
+        - containerPort: 8000
+        env:
+        - name: MONGODB_URI
+          value: "mongodb://root:example@mongodb:27017/structure?authSource=admin"
+        - name: DATABASE_NAME
+          value: "structure"
+        - name: RABBITMQ_URL
+          value: "amqp://guest:guest@rabbitmq:5672/"
+        readinessProbe:
+          httpGet:
+            path: /structure/health
+            port: 8000
+          initialDelaySeconds: 10
+          periodSeconds: 5
+        livenessProbe:
+          httpGet:
+            path: /structure/health
+            port: 8000
+          initialDelaySeconds: 15
+          periodSeconds: 10
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "128Mi"
+          limits:
+            cpu: "500m"
+            memory: "512Mi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: structure-manager
+spec:
+  selector:
+    app: structure-manager
+  ports:
+    - protocol: TCP
+      port: 8000
+      targetPort: 8000
+---
+apiVersion: autoscaling/v2beta1
+kind: HorizontalPodAutoscaler
+metadata:
+  name: structure-manager-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: structure-manager
+  minReplicas: 1
+  maxReplicas: 5
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      targetAverageUtilization: 70
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: structure-manager-pdb
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: structure-manager 

@@ -3,7 +3,8 @@ import aio_pika
 import os
 from .routes import router
 from .database import Database
-from .consumer import start_consumer
+from .consumer import StructureConsumer
+import asyncio
 
 app = FastAPI(
     title="Structure Manager",
@@ -16,16 +17,24 @@ RABBITMQ_URL = os.getenv("RABBITMQ_URL", "amqp://guest:guest@rabbitmq:5672/")
 
 @app.on_event("startup")
 async def startup_event():
+    # 데이터베이스 연결 설정
     await Database.connect_db()
-    # RabbitMQ 연결 설정
+    
+    # RabbitMQ 연결 및 consumer 설정
     app.state.rabbitmq_connection = await aio_pika.connect_robust(RABBITMQ_URL)
-    app.state.rabbitmq_channel = await app.state.rabbitmq_connection.channel()
-    # 컨슈머 시작
-    asyncio.create_task(start_consumer(app.state.rabbitmq_channel))
+    app.state.consumer = StructureConsumer(app.state.rabbitmq_connection)
+    await app.state.consumer.setup()
+    
+    # consumer 시작
+    asyncio.create_task(app.state.consumer.start_consuming())
 
 @app.on_event("shutdown")
 async def shutdown_event():
+    # 데이터베이스 연결 종료
     await Database.close_db()
+    
+    # RabbitMQ 연결 종료
+    await app.state.consumer.close()
     await app.state.rabbitmq_connection.close()
 
-app.include_router(router, prefix="/api") 
+app.include_router(router, prefix="/api")

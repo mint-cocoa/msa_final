@@ -12,23 +12,20 @@ class RabbitMQPublisher:
             self.channel = await self.connection.channel()
         return self.channel
 
-    async def publish_facility_event(
+    async def publish_park_event(
         self,
         action: str,
-        facility_id: str,
-        name: Optional[str] = None,
-        parent_id: Optional[str] = None
+        park_id: str,
+        name: Optional[str] = None
     ):
         message = {
             "action": action,
-            "node_type": "facility",
-            "reference_id": facility_id
+            "node_type": "park",
+            "reference_id": park_id
         }
         
         if name:
             message["name"] = name
-        if parent_id:
-            message["parent_id"] = parent_id
 
         channel = await self.get_channel()
         await channel.default_exchange.publish(
