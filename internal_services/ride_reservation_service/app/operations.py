@@ -1,6 +1,8 @@
 import httpx
 from .database import redis_client
 import time
+from datetime import datetime
+import json
 
 async def process_reservation(data):
     # 예약 처리 로직
@@ -51,19 +53,53 @@ async def get_reservation(reservation_id: str):
         return None
     return reservation
 
-async def add_to_queue(redis, ride_id: str, user_id: str):
+async def add_to_queue(redis, ride_id: str, user_id: str, number_of_people: int, reservation_time: datetime):
     queue_key = f"ride_queue:{ride_id}"
-    timestamp = time.time()
-    await redis.zadd(queue_key, {user_id: timestamp})
-    position = await redis.zrank(queue_key, user_id)
-    return position + 1  # 1-based indexing
+    reservation_data = {
+        "user_id": user_id,
+        "number_of_people": number_of_people,
+        "reservation_time": reservation_time.isoformat(),
+        "timestamp": time.time()
+    }
+    
+    # 예약 시간별로 정렬된 집합에 추가
+    score = int(reservation_time.timestamp())
+    await redis.zadd(queue_key, {json.dumps(reservation_data): score})
+    
+    # 현재 대기 인원 수 업데이트
+    await redis.hincrby(f"ride_stats:{ride_id}", "waiting_people", number_of_people)
+    
+    position = await redis.zrank(queue_key, json.dumps(reservation_data))
+    return position + 1
 
 async def get_queue_position(redis, ride_id: str, user_id: str):
     queue_key = f"ride_queue:{ride_id}"
-    position = await redis.zrank(queue_key, user_id)
-    return position + 1 if position is not None else None
+    queue_data = await redis.zrange(queue_key, 0, -1, withscores=True)
+    
+    for idx, (data, _) in enumerate(queue_data):
+        reservation = json.loads(data)
+        if reservation["user_id"] == user_id:
+            return idx + 1
+    return None
 
-async def remove_from_queue(redis, ride_id: str, user_id: str):
+async def cancel_reservation(redis, ride_id: str, user_id: str):
     queue_key = f"ride_queue:{ride_id}"
-    removed = await redis.zrem(queue_key, user_id)
-    return removed > 0
+    queue_data = await redis.zrange(queue_key, 0, -1, withscores=True)
+    
+    for data, score in queue_data:
+        reservation = json.loads(data)
+        if reservation["user_id"] == user_id:
+            # 예약 삭제
+            await redis.zrem(queue_key, data)
+            # 대기 인원 수 감소
+            await redis.hincrby(f"ride_stats:{ride_id}", "waiting_people", -reservation["number_of_people"])
+            return True
+    return False
+
+async def get_ride_stats(redis, ride_id: str):
+    stats_key = f"ride_stats:{ride_id}"
+    stats = await redis.hgetall(stats_key)
+    return {
+        "waiting_people": int(stats.get("waiting_people", 0)),
+        "total_reservations": await redis.zcard(f"ride_queue:{ride_id}")
+    }
