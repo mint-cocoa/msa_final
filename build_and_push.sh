@@ -11,3 +11,4 @@ docker buildx build --platform linux/amd64,linux/arm64 -t kasd0134/msa-structure
 docker buildx build --platform linux/amd64,linux/arm64 -t kasd0134/msa-ridereservationservice:latest ./internal_services/ride_reservation_service --push
 docker buildx build --platform linux/amd64,linux/arm64 -t kasd0134/msa-notificationservice:latest ./internal_services/notification_service --push
 docker buildx build --platform linux/amd64,linux/arm64 -t kasd0134/msa-realtimetrackingservice:latest ./internal_services/real_time_tracking_service --push
+docker buildx build --platform linux/amd64,linux/arm64 -t kasd0134/msa-redisservice:latest ./internal_services/redis_service --push
