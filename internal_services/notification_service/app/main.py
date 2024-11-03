@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-import aio_pika
+import redis.asyncio as redis
 import json
 from .operations import process_notification
 import asyncio
@@ -7,18 +7,21 @@ import os
 
 app = FastAPI()
 
-RABBITMQ_URL = os.getenv("RABBITMQ_URL", "amqp://guest:guest@rabbitmq:5672/")
+REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379")
 
 async def consume_messages():
-    connection = await aio_pika.connect_robust(RABBITMQ_URL)
-    channel = await connection.channel()
-    queue = await channel.declare_queue('notifications', durable=True)
+    redis_client = await redis.from_url(REDIS_URL)
+    pubsub = redis_client.pubsub()
+    await pubsub.subscribe("notifications")
 
-    async with queue.iterator() as queue_iter:
-        async for message in queue_iter:
-            async with message.process():
-                notification = json.loads(message.body.decode())
+    try:
+        async for message in pubsub.listen():
+            if message["type"] == "message":
+                notification = json.loads(message["data"])
                 await process_notification(notification)
+    finally:
+        await pubsub.unsubscribe("notifications")
+        await redis_client.close()
 
 @app.on_event("startup")
 async def startup_event():

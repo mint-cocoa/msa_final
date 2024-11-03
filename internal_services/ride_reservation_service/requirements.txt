@@ -1,6 +1,5 @@
 fastapi
 uvicorn
-aioredis
-python-jose
+python-jose[cryptography]
 httpx
 aio_pika

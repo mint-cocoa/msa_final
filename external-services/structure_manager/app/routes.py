@@ -6,6 +6,11 @@ from typing import List
 import asyncio
 from datetime import datetime
 import httpx
+import os
+
+# 환경 변수 추가
+RESERVATION_SERVICE_URL = os.getenv('RESERVATION_SERVICE_URL', 'http://localhost:8001')
+TICKET_SERVICE_URL = os.getenv('TICKET_SERVICE_URL', 'http://localhost:8002')
 
 router = APIRouter()
 

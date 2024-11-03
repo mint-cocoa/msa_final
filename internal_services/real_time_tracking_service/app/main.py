@@ -1,12 +1,12 @@
 from fastapi import FastAPI, WebSocket
-import aio_pika
+import redis.asyncio as redis
 import json
 import asyncio
 import os
 
 app = FastAPI()
 
-RABBITMQ_URL = os.getenv("RABBITMQ_URL", "amqp://guest:guest@rabbitmq:5672/")
+REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379")
 
 connected_clients = set()
 
@@ -21,16 +21,19 @@ async def websocket_endpoint(websocket: WebSocket):
         connected_clients.remove(websocket)
 
 async def send_updates():
-    connection = await aio_pika.connect_robust(RABBITMQ_URL)
-    channel = await connection.channel()
-    queue = await channel.declare_queue('real_time_updates', durable=True)
+    redis_client = await redis.from_url(REDIS_URL)
+    pubsub = redis_client.pubsub()
+    await pubsub.subscribe("real_time_updates")
 
-    async with queue.iterator() as queue_iter:
-        async for message in queue_iter:
-            async with message.process():
-                update = json.loads(message.body.decode())
+    try:
+        async for message in pubsub.listen():
+            if message["type"] == "message":
+                update = json.loads(message["data"])
                 for client in connected_clients:
                     await client.send_json(update)
+    finally:
+        await pubsub.unsubscribe("real_time_updates")
+        await redis_client.close()
 
 @app.on_event("startup")
 async def startup_event():

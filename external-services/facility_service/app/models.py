@@ -21,4 +21,9 @@ class FacilityModel(BaseModel):
             ObjectId: lambda oid: str(oid),
         }
 
+class FacilityCreate(FacilityModel):
+    park_id: str
+
+class FacilityUpdate(FacilityModel):
+    park_id: str
 

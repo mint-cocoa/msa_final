@@ -3,7 +3,9 @@ from .models import FacilityCreate, FacilityUpdate
 from .database import get_db
 from .crud import create_facility, update_facility, delete_facility, get_facility
 import httpx
+import os
 
+STRUCTURE_MANAGER_URL = os.getenv('STRUCTURE_MANAGER_URL', 'http://structure-manager:8000')
 router = APIRouter()
 
 @router.post("/facilities/create")
@@ -11,12 +13,13 @@ async def create_facility_endpoint(facility: FacilityCreate, request: Request):
     db = await get_db()
     facility_id = await create_facility(db, facility)
     
-    await request.app.state.rabbitmq_publisher.publish_facility_event(
-        action="create",
-        facility_id=str(facility_id),
-        name=facility.name,
-        parent_id=str(facility.park_id)
-    )
+    await request.app.state.publisher.publish_structure_update({
+        "action": "create",
+        "node_type": "facility",
+        "reference_id": str(facility_id),
+        "name": facility.name,
+        "parent_id": str(facility.park_id)
+    })
     
     return {"id": str(facility_id)}
 
@@ -40,12 +43,13 @@ async def update_facility_endpoint(facility_id: str, facility: FacilityUpdate, r
     success = await update_facility(db, facility_id, facility)
     
     if success:
-        await request.app.state.rabbitmq_publisher.publish_facility_event(
-            action="update",
-            facility_id=facility_id,
-            name=facility.name,
-            parent_id=str(facility.park_id)
-        )
+        await request.app.state.publisher.publish_structure_update({
+            "action": "update",
+            "node_type": "facility",
+            "reference_id": facility_id,
+            "name": facility.name,
+            "parent_id": str(facility.park_id)
+        })
         return {"message": "Facility updated successfully"}
     raise HTTPException(status_code=404, detail="Facility not found")
 
@@ -69,10 +73,11 @@ async def delete_facility_endpoint(facility_id: str, request: Request):
     success = await delete_facility(db, facility_id)
     
     if success:
-        await request.app.state.rabbitmq_publisher.publish_facility_event(
-            action="delete",
-            facility_id=facility_id
-        )
+        await request.app.state.publisher.publish_structure_update({
+            "action": "delete",
+            "node_type": "facility",
+            "reference_id": facility_id
+        })
         return {"message": "Facility deleted successfully"}
     raise HTTPException(status_code=404, detail="Facility not found")
 

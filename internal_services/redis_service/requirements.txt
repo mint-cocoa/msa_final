@@ -1,4 +1,3 @@
 fastapi
 uvicorn
-aioredis
-aio_pika
+redis

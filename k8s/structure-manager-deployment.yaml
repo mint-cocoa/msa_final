@@ -22,8 +22,8 @@ spec:
           value: "mongodb://root:example@mongodb:27017/structure?authSource=admin"
         - name: DATABASE_NAME
           value: "structure"
-        - name: RABBITMQ_URL
-          value: "amqp://guest:guest@rabbitmq:5672/"
+        - name: REDIS_URL
+          value: "redis://redis:6379"
         readinessProbe:
           httpGet:
             path: /structure/health

@@ -1,7 +1,4 @@
 fastapi
 uvicorn
-aioredis
-python-jose
+redis
 httpx
-aioredis
-aio_pika

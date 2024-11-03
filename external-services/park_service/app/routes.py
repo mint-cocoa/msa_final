@@ -4,7 +4,9 @@ from .models import ParkCreate, ParkUpdate
 from .database import get_db
 from .crud import create_park, update_park, delete_park, get_park
 import httpx
+import os
 
+STRUCTURE_MANAGER_URL = os.getenv('STRUCTURE_MANAGER_URL', 'http://structure-manager:8000')
 router = APIRouter()
 
 @router.post("/parks/create")
@@ -12,12 +14,12 @@ async def create_park_endpoint(park: ParkCreate, request: Request):
     db = await get_db()
     park_id = await create_park(db, park)
     
-    # RabbitMQ를 통해 이벤트 발행
-    await request.app.state.rabbitmq_publisher.publish_park_event(
-        action="create",
-        park_id=str(park_id),
-        name=park.name
-    )
+    await request.app.state.publisher.publish_structure_update({
+        "action": "create",
+        "node_type": "park",
+        "reference_id": str(park_id),
+        "name": park.name
+    })
     
     return {"id": str(park_id)}
 
@@ -42,11 +44,12 @@ async def update_park_endpoint(park_id: str, park: ParkUpdate, request: Request)
     success = await update_park(db, park_id, park)
     
     if success:
-        await request.app.state.rabbitmq_publisher.publish_park_event(
-            action="update",
-            park_id=park_id,
-            name=park.name
-        )
+        await request.app.state.publisher.publish_structure_update({
+            "action": "update",
+            "node_type": "park",
+            "reference_id": park_id,
+            "name": park.name
+        })
         return {"message": "Park updated successfully"}
     raise HTTPException(status_code=404, detail="Park not found")
 
@@ -71,10 +74,11 @@ async def delete_park_endpoint(park_id: str, request: Request):
     success = await delete_park(db, park_id)
     
     if success:
-        await request.app.state.rabbitmq_publisher.publish_park_event(
-            action="delete",
-            park_id=park_id
-        )
+        await request.app.state.publisher.publish_structure_update({
+            "action": "delete",
+            "node_type": "park",
+            "reference_id": park_id
+        })
         return {"message": "Park deleted successfully"}
     raise HTTPException(status_code=404, detail="Park not found")
 

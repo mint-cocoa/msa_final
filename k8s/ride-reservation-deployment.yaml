@@ -18,15 +18,31 @@ spec:
         ports:
         - containerPort: 8000
         env:
-        - name: RABBITMQ_URL
-          value: "amqp://guest:guest@rabbitmq:5672/"
+        - name: MONGODB_URI
+          value: "mongodb://root:example@mongodb:27017/reservations?authSource=admin"
+        - name: DATABASE_NAME
+          value: "reservations"
         - name: REDIS_URL
           value: "redis://redis:6379"
         readinessProbe:
-          tcpSocket:
+          httpGet:
+            path: /reservations/health
             port: 8000
           initialDelaySeconds: 10
           periodSeconds: 5
+        livenessProbe:
+          httpGet:
+            path: /reservations/health
+            port: 8000
+          initialDelaySeconds: 15
+          periodSeconds: 10
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "128Mi"
+          limits:
+            cpu: "500m"
+            memory: "512Mi"
 ---
 apiVersion: v1
 kind: Service
