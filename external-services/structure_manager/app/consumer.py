@@ -1,137 +1,101 @@
-import redis.asyncio as redis
+import aio_pika
 import json
-import asyncio
 from .database import get_db
-from bson import ObjectId
-from datetime import datetime
-import httpx
 import os
+import logging
+from .event_handlers import EventHandler
+from .event_mapping import EventMapper
 
-class RedisConsumer:
-    def __init__(self, redis_url: str = None):
-        self.redis_url = redis_url or os.getenv("REDIS_URL", "redis://redis:6379")
-        self.redis_client = None
+class RabbitMQConsumer:
+    def __init__(self, rabbitmq_url: str = None):
+        self.rabbitmq_url = rabbitmq_url or os.getenv("RABBITMQ_URL", "amqp://guest:guest@rabbitmq:5672/")
+        self.connection = None
+        self.channel = None
+        self.exchange = None
         self.db = None
-        self.pubsub = None
+        self.event_mapper = None
 
     async def connect(self):
-        if not self.redis_client:
-            self.redis_client = await redis.from_url(self.redis_url)
-            self.pubsub = self.redis_client.pubsub()
+        try:
+            self.connection = await aio_pika.connect_robust(self.rabbitmq_url)
+            self.channel = await self.connection.channel()
+            self.exchange = await self.channel.declare_exchange(
+                "theme_park_events",
+                aio_pika.ExchangeType.TOPIC
+            )
             self.db = await get_db()
+            
+            # 이벤트 핸들러와 매퍼 초기화
+            event_handler = EventHandler(self.db)
+            self.event_mapper = EventMapper(event_handler)
 
-    async def subscribe(self):
-        await self.pubsub.subscribe(
-            "park_create",
-            "park_update",
-            "park_delete",
-            "facility_create",
-            "facility_update",
-            "facility_delete",
-            "ticket_type_create",
-            "ticket_type_update",
-            "ticket_type_delete"
-        )
-
-    async def start_consuming(self):
-        await self.connect()
-        await self.subscribe()
-        
-        try:
-            async for message in self.pubsub.listen():
-                if message["type"] == "message":
-                    data = json.loads(message["data"])
-                    channel = message["channel"].decode()
-                    
-                    if channel == "park_create":
-                        await self.handle_park_event(data)
-                    elif channel == "park_update":
-                        await self.handle_park_event(data)
-                    elif channel == "park_delete":
-                        await self.handle_park_event(data)
-                    elif channel == "facility_create":
-                        await self.handle_facility_event(data)
-                    elif channel == "facility_update":
-                        await self.handle_facility_event(data)
-                    elif channel == "facility_delete":
-                        await self.handle_facility_event(data)
-                    elif channel == "ticket_type_create":
-                        await self.handle_ticket_event(data)
-                    elif channel == "ticket_type_update":
-                        await self.handle_ticket_event(data)
-                    elif channel == "ticket_type_delete":
-                        await self.handle_ticket_event(data)    
+            # 일반 업데이트용 큐
+            update_queue = await self.channel.declare_queue(
+                "structure_manager_updates", 
+                durable=True
+            )
+            
+            # RPC 요청용 큐
+            rpc_queue = await self.channel.declare_queue(
+                "structure_manager_rpc",
+                durable=True
+            )
+            
+            # 토픽 패턴으로 바인딩
+            await update_queue.bind(self.exchange, routing_key="*.updates.*")
+            await rpc_queue.bind(self.exchange, routing_key="*.create")
+            
+            await update_queue.consume(self.process_update)
+            await rpc_queue.consume(self.process_rpc)
+            logging.info("Successfully connected to RabbitMQ")
+            
         except Exception as e:
-            print(f"Error in consumer: {e}")
+            logging.error(f"Failed to connect to RabbitMQ: {e}")
+            raise
 
-    async def handle_park_event(self, data: dict):
-        try:
-            if data["action"] == "create":
-                await self.db.structure_nodes.insert_one({
-                    "node_type": "park",
-                    "reference_id": ObjectId(data["reference_id"]),
-                    "name": data["name"],
-                    "parent_id": None,
-                    "created_at": datetime.utcnow()
-                })
-            elif data["action"] == "update":
-                await self.db.structure_nodes.update_one(
-                    {"reference_id": ObjectId(data["reference_id"])},
-                    {"$set": {"name": data["name"], "updated_at": datetime.utcnow()}}
-                )
-            elif data["action"] == "delete":
-                await self.db.structure_nodes.delete_one(
-                    {"reference_id": ObjectId(data["reference_id"])}
-                )
-        except Exception as e:
-            print(f"Error handling park event: {e}")
+    async def process_update(self, message: aio_pika.IncomingMessage):
+        async with message.process():
+            try:
+                data = json.loads(message.body.decode())
+                routing_key = message.routing_key
+                await self.event_mapper.route_event(routing_key, data)
+            except Exception as e:
+                logging.error(f"Error processing update message: {e}")
 
-    async def handle_facility_event(self, data: dict):
-        try:
-            if data["action"] == "create":
-                await self.db.structure_nodes.insert_one({
-                    "node_type": "facility",
-                    "reference_id": ObjectId(data["reference_id"]),
-                    "name": data["name"],
-                    "parent_id": ObjectId(data["parent_id"]),
-                    "created_at": datetime.utcnow()
-                })
-            elif data["action"] == "update":
-                await self.db.structure_nodes.update_one(
-                    {"reference_id": ObjectId(data["reference_id"])},
-                    {
-                        "$set": {
-                            "name": data["name"],
-                            "parent_id": ObjectId(data["parent_id"]),
-                            "updated_at": datetime.utcnow()
-                        }
-                    }
+    async def process_rpc(self, message: aio_pika.IncomingMessage):
+        async with message.process():
+            try:
+                data = json.loads(message.body.decode())
+                routing_key = message.routing_key
+                
+                # RPC 요청 처리
+                result = await self.event_mapper.handle_rpc(routing_key, data)
+                
+                # 응답 전송
+                await self.exchange.publish(
+                    aio_pika.Message(
+                        body=json.dumps(result).encode(),
+                        correlation_id=message.correlation_id,
+                        content_type="application/json"
+                    ),
+                    routing_key=message.reply_to
                 )
-            elif data["action"] == "delete":
-                await self.db.structure_nodes.delete_one(
-                    {"reference_id": ObjectId(data["reference_id"])}
+            except Exception as e:
+                logging.error(f"Error processing RPC message: {e}")
+                # 에러 응답 전송
+                error_response = {
+                    "error": str(e)
+                }
+                await self.exchange.publish(
+                    aio_pika.Message(
+                        body=json.dumps(error_response).encode(),
+                        correlation_id=message.correlation_id,
+                        content_type="application/json"
+                    ),
+                    routing_key=message.reply_to
                 )
-        except Exception as e:
-            print(f"Error handling facility event: {e}")
-
-    async def handle_ticket_event(self, data: dict):
-        try:
-            if data["action"] == "access_update":
-                await self.db.access_control.update_one(
-                    {"ticket_type_id": ObjectId(data["ticket_type_id"])},
-                    {
-                        "$set": {
-                            "facility_ids": [ObjectId(fid) for fid in data["facility_ids"]],
-                            "updated_at": datetime.utcnow()
-                        }
-                    },
-                    upsert=True
-                )
-        except Exception as e:
-            print(f"Error handling ticket event: {e}")
 
     async def close(self):
-        if self.pubsub:
-            await self.pubsub.unsubscribe()
-        if self.redis_client:
-            await self.redis_client.close() 
+        if self.connection:
+            await self.connection.close()
+            

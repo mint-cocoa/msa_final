@@ -1,18 +1,17 @@
-from pydantic import BaseModel, Field, ConfigDict, BeforeValidator
-from typing import Optional, List, Annotated
 from datetime import datetime
+from typing import Annotated, Optional, List
+from pydantic import BaseModel, ConfigDict, BeforeValidator, Field
 from bson import ObjectId
 
 PyObjectId = Annotated[str, BeforeValidator(str)]
 
-class TreeNode(BaseModel):
+class NodeModel(BaseModel):
     id: Optional[PyObjectId] = Field(alias="_id", default=None)
-    node_type: str  # "park" or "facility" or "ticket_type"
+    node_type: str
     reference_id: PyObjectId
     name: str
     parent_id: Optional[PyObjectId] = None
-    children: List['TreeNode'] = []
-    level: int = 0
+    children: List[PyObjectId] = []
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
@@ -21,20 +20,9 @@ class TreeNode(BaseModel):
         arbitrary_types_allowed=True,
         json_encoders={
             datetime: lambda dt: dt.isoformat(),
-            ObjectId: str
+            ObjectId: lambda oid: str(oid),
         }
     )
 
-# 재귀적 참조를 위한 업데이트
-TreeNode.model_rebuild()
-
-class NodeCreate(BaseModel):
-    node_type: str
-    reference_id: str
-    name: str
-    parent_id: Optional[str] = None
-
-    model_config = ConfigDict(
-        populate_by_name=True
-    )
-
+    class Collection:
+        name = "nodes"

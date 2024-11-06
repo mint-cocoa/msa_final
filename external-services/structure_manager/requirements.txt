@@ -1,5 +1,6 @@
 fastapi
 uvicorn
 motor
-redis
+aio-pika
 httpx
+python-dotenv

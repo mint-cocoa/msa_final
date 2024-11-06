@@ -1,8 +1,7 @@
 # park_service/app/main.py
 from fastapi import FastAPI
 from .routes import router
-from .database import Database
-from .publisher import RedisPublisher
+from .publisher import EventPublisher
 
 app = FastAPI(
     title="Park Service",
@@ -13,19 +12,14 @@ app = FastAPI(
 
 @app.on_event("startup")
 async def startup_event():
-    # 데이터베이스 연결 설정
-    await Database.connect_db()
-    
-    # Redis Publisher 설정
-    app.state.publisher = RedisPublisher()
+    # RabbitMQ Publisher 설정
+    app.state.publisher = EventPublisher()
     await app.state.publisher.connect()
 
 @app.on_event("shutdown")
 async def shutdown_event():
-    # 데이터베이스 연결 종료
-    await Database.close_db()
-    
-    # Redis 연결 종료
-    await app.state.publisher.close()
+    # RabbitMQ 연결 종료
+    if hasattr(app.state, 'publisher'):
+        await app.state.publisher.close()
 
 app.include_router(router, prefix="/api")

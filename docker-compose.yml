@@ -10,78 +10,95 @@ services:
       - "27017:27017"
     volumes:
       - mongodb_data:/data/db
+    networks:
+      - theme_park_network
     healthcheck:
       test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
       interval: 10s
-      timeout: 10s
+      timeout: 5s
       retries: 5
 
-  redis:
-    image: redis:latest
+  rabbitmq:
+    image: rabbitmq:3-management
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
     ports:
-      - "6379:6379"
+      - "5672:5672"   # AMQP protocol port
+      - "15672:15672" # Management UI
     volumes:
-      - redis_data:/data
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - theme_park_network
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 3s
+      test: ["CMD", "rabbitmq-diagnostics", "check_port_connectivity"]
+      interval: 10s
+      timeout: 5s
       retries: 5
-
-  park-service:
-    build: 
-      context: ./external-services/park_service
-      dockerfile: Dockerfile
-    environment:
-      - MONGODB_URI=mongodb://root:example@mongodb:27017/parks?authSource=admin
-      - DATABASE_NAME=parks
-      - REDIS_URL=redis://redis:6379
-      - STRUCTURE_MANAGER_URL=http://structure-manager:8000
-    ports:
-      - "8001:8000"
-    depends_on:
-      mongodb:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      structure-manager:
-        condition: service_started
-
-  facility-service:
-    build:
-      context: ./external-services/facility_service
-      dockerfile: Dockerfile
-    environment:
-      - MONGODB_URI=mongodb://root:example@mongodb:27017/facilities?authSource=admin
-      - DATABASE_NAME=facilities
-      - REDIS_URL=redis://redis:6379
-      - STRUCTURE_MANAGER_URL=http://structure-manager:8000
-    ports:
-      - "8002:8000"
-    depends_on:
-      mongodb:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      structure-manager:
-        condition: service_started
 
   structure-manager:
     build:
       context: ./external-services/structure_manager
       dockerfile: Dockerfile
     environment:
-      - MONGODB_URI=mongodb://root:example@mongodb:27017/structure?authSource=admin
-      - DATABASE_NAME=structure
-      - REDIS_URL=redis://redis:6379
-    ports:
-      - "8003:8000"
+      MONGODB_URI: "mongodb://root:example@mongodb:27017/structure?authSource=admin"
+      DATABASE_NAME: "structure"
+      RABBITMQ_URL: "amqp://guest:guest@rabbitmq:5672/"
     depends_on:
       mongodb:
         condition: service_healthy
-      redis:
+      rabbitmq:
         condition: service_healthy
+    ports:
+      - "8002:8000"
+    networks:
+      - theme_park_network
+    restart: on-failure
+
+  park-service:
+    build:
+      context: ./external-services/park_service
+      dockerfile: Dockerfile
+    environment:
+      MONGODB_URI: "mongodb://root:example@mongodb:27017/external?authSource=admin"
+      DATABASE_NAME: "external"
+      RABBITMQ_URL: "amqp://guest:guest@rabbitmq:5672/"
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    networks:
+      - theme_park_network
+    restart: on-failure
+
+  facility-service:
+    build:
+      context: ./external-services/facility_service
+      dockerfile: Dockerfile
+    environment:
+      MONGODB_URI: "mongodb://root:example@mongodb:27017/external?authSource=admin"
+      DATABASE_NAME: "external"
+      RABBITMQ_URL: "amqp://guest:guest@rabbitmq:5672/"
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      park-service:
+        condition: service_started
+    ports:
+      - "8001:8000"
+    networks:
+      - theme_park_network
+    restart: on-failure
+
+networks:
+  theme_park_network:
+    driver: bridge
 
 volumes:
   mongodb_data:
-  redis_data: 
+  rabbitmq_data: 

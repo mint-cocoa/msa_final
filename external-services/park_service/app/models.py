@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Annotated, Optional
+from typing import Annotated, Optional, List
 from pydantic import BaseModel, ConfigDict, BeforeValidator, Field
 from bson import ObjectId
 
@@ -28,5 +28,6 @@ class ParkModel(MongoBaseModel):
     name: str
     location: str
     description: str
+    ticket_types: List[TicketTypeModel]
     status: str
     

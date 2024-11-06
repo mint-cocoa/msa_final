@@ -1,7 +1,7 @@
 fastapi
 uvicorn
-motor
 python-dotenv
 pydantic[email]
-redis
+aio-pika
 httpx
+bson
