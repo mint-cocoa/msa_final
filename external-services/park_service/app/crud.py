@@ -1,9 +1,9 @@
 from bson import ObjectId
-from .models import ParkCreate, ParkUpdate
+from .models import ParkModel
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from datetime import datetime
 
-async def create_park(db: AsyncIOMotorDatabase, park: ParkCreate):
+async def create_park(db: AsyncIOMotorDatabase, park: ParkModel):
     park_data = park.dict()
     park_data["created_at"] = datetime.utcnow()
     park_data["updated_at"] = datetime.utcnow()
@@ -11,7 +11,7 @@ async def create_park(db: AsyncIOMotorDatabase, park: ParkCreate):
     result = await db.parks.insert_one(park_data)
     return str(result.inserted_id)
 
-async def update_park(db: AsyncIOMotorDatabase, park_id: str, park: ParkUpdate):
+async def update_park(db: AsyncIOMotorDatabase, park_id: str, park: ParkModel):
     park_data = park.dict(exclude_unset=True)
     park_data["updated_at"] = datetime.utcnow()
     

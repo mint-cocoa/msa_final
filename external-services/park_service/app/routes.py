@@ -1,6 +1,6 @@
 # park_service/app/routes.py
 from fastapi import APIRouter, HTTPException, Depends, Request
-from .models import ParkCreate, ParkUpdate
+from .models import ParkModel
 from .database import get_db
 from .crud import create_park, update_park, delete_park, get_park
 import httpx
@@ -10,7 +10,7 @@ STRUCTURE_MANAGER_URL = os.getenv('STRUCTURE_MANAGER_URL', 'http://structure-man
 router = APIRouter()
 
 @router.post("/parks/create")
-async def create_park_endpoint(park: ParkCreate, request: Request):
+async def create_park_endpoint(park: ParkModel, request: Request):
     db = await get_db()
     park_id = await create_park(db, park)
     
@@ -24,7 +24,7 @@ async def create_park_endpoint(park: ParkCreate, request: Request):
     return {"id": str(park_id)}
 
 @router.post("/parks/{park_id}/update")
-async def update_park_endpoint(park_id: str, park: ParkUpdate, request: Request):
+async def update_park_endpoint(park_id: str, park: ParkModel, request: Request):
     # Structure Manager에 검증 요청
     async with httpx.AsyncClient() as client:
         response = await client.post(

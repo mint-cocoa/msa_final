@@ -138,25 +138,3 @@ async def validate_ticket(
     
     return {"valid": True, "ticket": ticket}
 
-@router.put("/ticket-types/{ticket_type_id}")
-async def update_ticket_type(ticket_type_id: str, ticket_type: TicketTypeUpdate, request: Request):
-    # Structure Manager에 검증 요청
-    async with httpx.AsyncClient() as client:
-        response = await client.post(
-            f"{STRUCTURE_MANAGER_URL}/api/validate/ticket-type-update/{ticket_type_id}"
-        )
-        if response.status_code != 200:
-            raise HTTPException(status_code=400, detail="Failed to validate update")
-        
-        validation = response.json()
-        if not validation["can_update"]:
-            raise HTTPException(
-                status_code=400, 
-                detail=f"Cannot update ticket type. Has {validation['active_tickets_count']} active tickets."
-            )
-    
-    db = await get_db()
-    result = await db.ticket_types.update_one(
-        {"_id": ObjectId(ticket_type_id)},
-        {"$set": ticket_type.dict(exclude_unset=True)}
-    )

@@ -1,63 +1,32 @@
-from pydantic import BaseModel, EmailStr, ConfigDict, BeforeValidator, Field
-from typing import Optional, List, Annotated
 from datetime import datetime
+from typing import Annotated, Optional
+from pydantic import BaseModel, ConfigDict, BeforeValidator, Field
 from bson import ObjectId
-from typing import Annotated
 
+# ObjectId 변환을 위한 커스텀 타입
 PyObjectId = Annotated[str, BeforeValidator(str)]
 
-class TicketTypeModel(BaseModel):
+class MongoBaseModel(BaseModel):
+    id: Optional[PyObjectId] = Field(alias="_id", default=None)
+    
+    model_config = {
+        "populate_by_name": True,
+        "arbitrary_types_allowed": True,
+        "json_encoders": {
+            datetime: lambda dt: dt.isoformat(),
+            ObjectId: lambda oid: str(oid),
+        }
+    }
+
+# 사용 예시
+class TicketTypeModel(MongoBaseModel):
     name: str
     description: str
     price: float
 
-    model_config = ConfigDict(
-        populate_by_name=True,
-        arbitrary_types_allowed=True,
-        json_encoders={
-            datetime: lambda dt: dt.isoformat(),
-            ObjectId: lambda oid: str(oid),
-        }
-    )
-
-class ParkModel(BaseModel):
-    id: Optional[PyObjectId] = Field(alias="_id", default=None)
+class ParkModel(MongoBaseModel):
     name: str
     location: str
     description: str
     status: str
     
-    class Config(ConfigDict):
-        populate_by_name = True
-        arbitrary_types_allowed = True
-        json_encoders = {
-            datetime: lambda dt: dt.isoformat(),
-            ObjectId: lambda oid: str(oid),
-        }
-        
-class ParkCreate(BaseModel):
-    name: str
-    location: str
-    description: str
-    
-
-class ParkRead(BaseModel):
-    id: Optional[PyObjectId] = Field(alias="_id", default=None)
-    name: str
-    location: str
-    description: str
-    ticket_types: List[TicketTypeModel] = []
-
-    class Config(ConfigDict):
-        populate_by_name = True
-        arbitrary_types_allowed = True
-        json_encoders = {
-            datetime: lambda dt: dt.isoformat(),
-            ObjectId: lambda oid: str(oid),
-        }
-
-class ParkUpdate(BaseModel):
-    name: str
-    location: str
-    description: str
-

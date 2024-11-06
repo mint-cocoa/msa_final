@@ -1,10 +1,8 @@
 from datetime import datetime
 from .database import get_redis
+import json
 
 class ReservationMessageHandler:
-    def __init__(self, redis_publisher):
-        self.redis_publisher = redis_publisher
-
     async def handle_reservation_create(self, user_id: str, ride_id: str, 
                                      number_of_people: int, reservation_time: datetime):
         redis = await get_redis()
@@ -22,25 +20,21 @@ class ReservationMessageHandler:
         
         await redis.hmset(reservation_key, reservation_data)
         
-        # 대기열에 추가
-        queue_key = f"ride_queue:{ride_id}"
-        score = int(reservation_time.timestamp())
-        await redis.zadd(queue_key, {user_id: score})
-        
-        position = await redis.zrank(queue_key, user_id)
-        
-        # Redis Pub/Sub을 통해 예약 생성 이벤트 발행
+        # Redis PubSub을 통해 예약 생성 이벤트 발행
         message = {
             "action": "create",
             "user_id": user_id,
             "ride_id": ride_id,
-            "position": position + 1,
             "number_of_people": number_of_people,
+            "timestamp": int(reservation_time.timestamp()),
             "reservation_time": reservation_time.isoformat()
         }
-        await self.redis_publisher.publish_message('ride_reservations', message)
+        await redis.publish('ride_reservations', json.dumps(message))
         
-        return position + 1
+        # 대기열 위치 확인
+        queue_key = f"ride_queue:{ride_id}"
+        position = await redis.zrank(queue_key, user_id)
+        return position + 1 if position is not None else None
 
     async def handle_reservation_cancel(self, user_id: str, ride_id: str, reason: str = None):
         redis = await get_redis()
@@ -51,21 +45,20 @@ class ReservationMessageHandler:
         if not reservation:
             return False
             
-        queue_key = f"ride_queue:{ride_id}"
-        await redis.zrem(queue_key, user_id)
-        
-        await redis.hset(reservation_key, mapping={
-            "status": "cancelled",
-            "cancelled_at": datetime.utcnow().isoformat(),
-            "cancel_reason": reason or ""
-        })
-        
+        # Redis PubSub을 통해 취소 이벤트 발행
         message = {
             "action": "cancel",
             "user_id": user_id,
             "ride_id": ride_id,
             "reason": reason
         }
-        await self.redis_publisher.publish_message('ride_cancellations', message)
+        await redis.publish('ride_cancellations', json.dumps(message))
+        
+        # 예약 상태 업데이트
+        await redis.hset(reservation_key, mapping={
+            "status": "cancelled",
+            "cancelled_at": datetime.utcnow().isoformat(),
+            "cancel_reason": reason or ""
+        })
         
         return True

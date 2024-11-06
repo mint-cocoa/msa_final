@@ -9,7 +9,7 @@ COPY . .
 
 ENV MONGODB_URI="mongodb://root:example@mongodb:27017/structure?authSource=admin"
 ENV DATABASE_NAME="structure"
-ENV RABBITMQ_URL="amqp://guest:guest@rabbitmq:5672/"
+ENV REDIS_URL="redis://redis:6379"
 
 EXPOSE 8000
 

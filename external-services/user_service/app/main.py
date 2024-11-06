@@ -2,7 +2,7 @@
 from fastapi import FastAPI
 from .routes import router as user_router
 from .database import Database
-from common.rabbitmq import RabbitMQConnection
+from .publisher import RedisPublisher
 import logging
 
 app = FastAPI(
@@ -15,13 +15,14 @@ app = FastAPI(
 @app.on_event("startup")
 async def startup_event():
     await Database.connect_db()
-    await RabbitMQConnection.connect()
+    app.state.publisher = RedisPublisher()
+    await app.state.publisher.connect()
     logging.info("User Service started")
 
 @app.on_event("shutdown")
 async def shutdown_event():
     await Database.close_db()
-    await RabbitMQConnection.close()
+    await app.state.publisher.close()
     logging.info("User Service shutdown")
 
 @app.get("/")

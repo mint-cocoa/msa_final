@@ -2,7 +2,7 @@
 from fastapi import FastAPI
 from .routes import router
 from .database import Database
-from common.publisher import RedisPublisher
+from .publisher import RedisPublisher
 
 app = FastAPI(
     title="Park Service",

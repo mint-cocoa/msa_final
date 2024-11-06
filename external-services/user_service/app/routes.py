@@ -6,7 +6,6 @@ from fastapi.security import OAuth2PasswordRequestForm
 from .database import get_db
 import os
 from bson import ObjectId
-from common.publisher import publish_structure_update
 
 router = APIRouter()
 

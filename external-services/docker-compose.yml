@@ -12,48 +12,105 @@ services:
       - "27017:27017"
     volumes:
       - mongodb_data:/data/db
+    networks:
+      - msa_network
 
   redis:
     image: redis:latest
     container_name: redis
     ports:
       - "6379:6379"
+    networks:
+      - msa_network
 
   user_service:
-    build: ./user-service
+    build: 
+      context: ./user_service
+      dockerfile: Dockerfile
     container_name: user_service
+    ports:
+      - "8001:8000"
     environment:
       - MONGODB_URI=mongodb://root:example@mongodb:27017/users?authSource=admin
       - DATABASE_NAME=users
+      - REDIS_URL=redis://redis:6379
     depends_on:
       - mongodb
+      - redis
+    networks:
+      - msa_network
 
   park_service:
-    build: ./park_service
+    build: 
+      context: ./park_service
+      dockerfile: Dockerfile
     container_name: park_service
+    ports:
+      - "8002:8000"
     environment:
       - MONGODB_URI=mongodb://root:example@mongodb:27017/parks?authSource=admin
       - DATABASE_NAME=parks
+      - REDIS_URL=redis://redis:6379
     depends_on:
       - mongodb
+      - redis
+    networks:
+      - msa_network
 
   facility_service:
-    build: ./facility_service
+    build: 
+      context: ./facility_service
+      dockerfile: Dockerfile
     container_name: facility_service
+    ports:
+      - "8003:8000"
     environment:
       - MONGODB_URI=mongodb://root:example@mongodb:27017/facilities?authSource=admin
       - DATABASE_NAME=facilities
+      - REDIS_URL=redis://redis:6379
     depends_on:
       - mongodb
+      - redis
+    networks:
+      - msa_network
 
   ticket_service:
-    build: ./ticket_service
+    build: 
+      context: ./ticket_service
+      dockerfile: Dockerfile
     container_name: ticket_service
+    ports:
+      - "8004:8000"
     environment:
       - MONGODB_URI=mongodb://root:example@mongodb:27017/tickets?authSource=admin
       - DATABASE_NAME=tickets
+      - REDIS_URL=redis://redis:6379
     depends_on:
       - mongodb
+      - redis
+    networks:
+      - msa_network
+
+  structure_manager:
+    build: 
+      context: ./structure_manager
+      dockerfile: Dockerfile
+    container_name: structure_manager
+    ports:
+      - "8005:8000"
+    environment:
+      - MONGODB_URI=mongodb://root:example@mongodb:27017/structure?authSource=admin
+      - DATABASE_NAME=structure
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      - mongodb
+      - redis
+    networks:
+      - msa_network
+
+networks:
+  msa_network:
+    driver: bridge
 
 volumes:
   mongodb_data:

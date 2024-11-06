@@ -16,7 +16,6 @@ class ReservationResponse(BaseModel):
     reservation_time: datetime
     status: str  # 'pending', 'confirmed', 'cancelled'
     created_at: datetime
-    updated_at: Optional[datetime]
-
+    
 class ReservationCancel(BaseModel):
     reason: Optional[str] = None 
