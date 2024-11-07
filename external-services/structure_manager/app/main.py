@@ -14,20 +14,33 @@ app = FastAPI(
     version="1.0.0"
 )
 
-async def init_nodes_collection(db: AsyncIOMotorDatabase):
+async def init_collections(db: AsyncIOMotorDatabase):
     try:
-        # nodes 컬렉션이 없으면 생성
+        # 현재 존재하는 컬렉션 목록 조회
         collections = await db.list_collection_names()
+        
+        # nodes 컬렉션 초기화
         if "nodes" not in collections:
             await db.create_collection("nodes")
-            
-            # 인덱스 생성
             await db.nodes.create_index("reference_id", unique=True)
             await db.nodes.create_index("type")
-            
             logging.info("Nodes collection initialized successfully")
+
+        # parks 컬렉션 초기화
+        if "parks" not in collections:
+            await db.create_collection("parks")
+            await db.parks.create_index("name", unique=True)
+            logging.info("Parks collection initialized successfully")
+
+        # facilities 컬렉션 초기화
+        if "facilities" not in collections:
+            await db.create_collection("facilities")
+            await db.facilities.create_index("park_id")
+            await db.facilities.create_index([("name", 1), ("park_id", 1)], unique=True)
+            logging.info("Facilities collection initialized successfully")
+
     except Exception as e:
-        logging.error(f"Failed to initialize nodes collection: {e}")
+        logging.error(f"Failed to initialize collections: {e}")
         raise
 
 @app.on_event("startup")
@@ -37,8 +50,8 @@ async def startup_event():
         await Database.connect_db()
         db = Database.get_database()
         
-        # nodes 컬렉션 초기화
-        await init_nodes_collection(db)
+        # 컬렉션 초기화
+        await init_collections(db)
         
         # RabbitMQ Consumer 설정
         app.state.consumer = RabbitMQConsumer()

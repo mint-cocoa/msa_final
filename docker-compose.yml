@@ -95,6 +95,27 @@ services:
       - theme_park_network
     restart: on-failure
 
+  ticket-service:
+    build:
+      context: ./external-services/ticket_service
+      dockerfile: Dockerfile
+    environment:
+      MONGODB_URI: "mongodb://root:example@mongodb:27017/external?authSource=admin"
+      DATABASE_NAME: "external"
+      RABBITMQ_URL: "amqp://guest:guest@rabbitmq:5672/"
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      structure-manager:
+        condition: service_started
+    ports:
+      - "8003:8000"
+    networks:
+      - theme_park_network
+    restart: on-failure
+
 networks:
   theme_park_network:
     driver: bridge

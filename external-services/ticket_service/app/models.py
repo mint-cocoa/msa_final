@@ -7,6 +7,7 @@ class CreateTicketForm(BaseModel):
     user_id: str = Field(..., title="사용자 ID", description="티켓을 구매하는 사용자의 고유 식별자")
     park_id: str = Field(..., title="공원 ID", description="구매할 공원의 고유 식별자")
     ticket_type_name: str = Field(..., title="티켓 유형 이름", description="구매할 티켓 유형의 이름")
+    facility_ids: List[str] = Field(..., title="시설 ID 목록", description="접근하고자 하는 시설들의 ID 목록")
 
 class TicketResponse(BaseModel):
     token: str 

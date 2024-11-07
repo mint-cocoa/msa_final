@@ -10,8 +10,8 @@ class NodeModel(BaseModel):
     node_type: str
     reference_id: PyObjectId  # parks 컬렉션의 _id
     name: str
-    parent_id: Optional[PyObjectId] = None
-    facilities: List[PyObjectId] = []  # facilities 컬렉션의 _id 목록
+    park_id: PyObjectId
+    facilities: List[PyObjectId] = []
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 

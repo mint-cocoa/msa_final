@@ -11,7 +11,7 @@ async def create_facility_endpoint(park_id: str, facility: FacilityModel, reques
             "action": "create",
             "node_type": "facility",
             "name": facility.name,
-            "parent_id": park_id,
+            "park_id": park_id,
             "data": facility.dict()
         })
         return {"message": "Facility creation request sent successfully"}
@@ -27,7 +27,7 @@ async def update_facility_endpoint(park_id: str, facility_id: str, facility: Fac
             "node_type": "facility",
             "reference_id": facility_id,
             "name": facility.name,
-            "parent_id": park_id,
+            "park_id": park_id,
             "data": facility.dict()
         })
         return {"message": "Facility update request sent successfully"}
@@ -42,7 +42,7 @@ async def delete_facility_endpoint(park_id: str, facility_id: str, request: Requ
             "action": "delete",
             "node_type": "facility",
             "reference_id": facility_id,
-            "parent_id": park_id
+            "park_id": park_id
         })
         return {"message": "Facility deletion request sent successfully"}
     except Exception as e:
@@ -56,7 +56,7 @@ async def get_facility_endpoint(park_id: str, facility_id: str, request: Request
             "action": "get",
             "node_type": "facility",
             "reference_id": facility_id,
-            "parent_id": park_id
+            "park_id": park_id
         })
         return {"message": "Facility retrieval request sent successfully"}
     except Exception as e:

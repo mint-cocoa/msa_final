@@ -41,21 +41,13 @@ class RabbitMQConsumer:
                 durable=True
             )
             
-            # Structure 서비스 요청을 위한 큐
-            structure_queue = await self.channel.declare_queue(
-                "structure_request_queue",
-                durable=True
-            )
-            
             # 토픽 패턴으로 바인딩
             await park_queue.bind(self.exchange, routing_key="park.*")
             await facility_queue.bind(self.exchange, routing_key="facility.*")
-            await structure_queue.bind(self.exchange, routing_key="structure.*")
             
             # 메시지 소비 시작
             await park_queue.consume(self.process_park_request)
             await facility_queue.consume(self.process_facility_request)
-            await structure_queue.consume(self.process_structure_request)
             
             logging.info("Successfully connected to RabbitMQ")
             
@@ -126,41 +118,6 @@ class RabbitMQConsumer:
                     ),
                     routing_key="facility.response.error"
                 )
-
-    async def process_structure_request(self, message: aio_pika.IncomingMessage):
-        async with message.process():
-            try:
-                data = json.loads(message.body.decode())
-                routing_key = message.routing_key
-                
-                # Structure 서비스 요청 처리
-                result = await self.event_mapper.handle_structure_request(data)
-                
-                # 응답 발행
-                if message.reply_to:
-                    await self.exchange.publish(
-                        aio_pika.Message(
-                            body=json.dumps(result).encode(),
-                            content_type="application/json",
-                            correlation_id=message.correlation_id
-                        ),
-                        routing_key=message.reply_to
-                    )
-                
-                logging.info(f"Successfully processed structure request: {routing_key}")
-                
-            except Exception as e:
-                logging.error(f"Error processing structure request: {e}")
-                error_response = {"error": str(e)}
-                if message.reply_to:
-                    await self.exchange.publish(
-                        aio_pika.Message(
-                            body=json.dumps(error_response).encode(),
-                            content_type="application/json",
-                            correlation_id=message.correlation_id
-                        ),
-                        routing_key=message.reply_to
-                    )
 
     async def close(self):
         if self.connection:

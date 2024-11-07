@@ -21,7 +21,7 @@ async def get_park_facilities(park_id: str, request: Request):
             raise HTTPException(status_code=404, detail="Park not found")
             
         facilities = []
-        for facility_id in park_node.get("children", []):
+        for facility_id in park_node.get("facilities", []):
             facility = await db.facilities.find_one({"_id": facility_id})
             if facility:
                 facility["_id"] = str(facility["_id"])

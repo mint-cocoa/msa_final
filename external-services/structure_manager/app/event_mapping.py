@@ -19,6 +19,9 @@ class EventMapper:
             "facility.delete": self.event_handler.handle_facility_delete,
             "facility.get": self.event_handler.handle_facility_get,
             "facility.get_all": self.event_handler.handle_facility_get_all,
+            
+            # Structure 요청 핸들러
+            "structure.validate_facilities": self.event_handler.handle_facility_validation
         }
 
     async def handle_park_request(self, data: Dict[str, Any]) -> Dict[str, Any]:
@@ -28,7 +31,8 @@ class EventMapper:
             handler = self.request_handlers.get(routing_key)
             
             if handler:
-                return await handler(data)
+                result = await handler(data)
+                return result
             else:
                 logging.warning(f"No handler found for park action: {action}")
                 return {"status": "error", "message": "Unknown park action"}
@@ -43,10 +47,27 @@ class EventMapper:
             handler = self.request_handlers.get(routing_key)
             
             if handler:
-                return await handler(data)
+                result = await handler(data)
+                return result
             else:
                 logging.warning(f"No handler found for facility action: {action}")
                 return {"status": "error", "message": "Unknown facility action"}
         except Exception as e:
             logging.error(f"Error handling facility request: {e}")
+            raise
+
+    async def handle_structure_request(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        try:
+            action = data.get("action")
+            routing_key = f"structure.{action}"
+            handler = self.request_handlers.get(routing_key)
+            
+            if handler:
+                result = await handler(data)
+                return result
+            else:
+                logging.warning(f"No handler found for structure action: {action}")
+                return {"status": "error", "message": "Unknown structure action"}
+        except Exception as e:
+            logging.error(f"Error handling structure request: {e}")
             raise

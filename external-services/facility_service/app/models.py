@@ -17,7 +17,7 @@ class FacilityModel(BaseModel):
     ride_duration: int    # 분 단위
     capacity_per_ride: int  # 한 번에 탑승 가능한 인원
     minimum_height: Optional[int] = None  # cm 단위
-    
+
     class Config(ConfigDict):
         populate_by_name = True     
         arbitrary_types_allowed = True

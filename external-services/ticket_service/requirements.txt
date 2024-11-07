@@ -19,3 +19,4 @@ qrcode
 Pillow
 typing
 httpx
+aio-pika

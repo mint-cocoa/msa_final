@@ -23,7 +23,7 @@ class EventHandler:
                 "type": "park",
                 "reference_id": park_id,
                 "name": park_data.get("name"),
-                "children": [],
+                "park_id": park_id,
                 "created_at": datetime.utcnow(),
                 "updated_at": datetime.utcnow()
             }
@@ -61,18 +61,18 @@ class EventHandler:
     async def handle_facility_create(self, data: Dict[str, Any]) -> Dict[str, Any]:
         try:
             facility_data = data.get("data", {})
-            parent_id = data.get("parent_id")
+            park_id  = data.get("park_id")
             
-            if not parent_id:
+            if not park_id:
                 raise Exception("Facility must have a parent park")
             
             # 공원 노드 존재 확인
             park_node = await self.db.nodes.find_one({
                 "type": "park",
-                "reference_id": ObjectId(parent_id)
+                "reference_id": park_id
             })
             if not park_node:
-                raise Exception("Parent park not found")
+                raise Exception("park not found")
             
             # facilities 컬렉션에 저장
             result = await self.db.facilities.insert_one(facility_data)
@@ -80,7 +80,7 @@ class EventHandler:
             
             # 공원 노드의 facilities 배열에 시설물 ID 추가
             await self.db.nodes.update_one(
-                {"reference_id": ObjectId(parent_id)},
+                {"reference_id": park_id},
                 {"$push": {"facilities": facility_id}}
             )
             
@@ -92,14 +92,14 @@ class EventHandler:
     async def handle_facility_delete(self, data: Dict[str, Any]) -> Dict[str, Any]:
         try:
             facility_id = data.get("reference_id")
-            parent_id = data.get("parent_id")
+            park_id = data.get("park_id")
             
             # 시설물 삭제
             result = await self.db.facilities.delete_one({"_id": ObjectId(facility_id)})
             
             # 공원 노드에서 시설물 ID 제거
             await self.db.nodes.update_one(
-                {"reference_id": ObjectId(parent_id)},
+                {"reference_id": park_id},
                 {"$pull": {"facilities": ObjectId(facility_id)}}
             )
             
@@ -185,5 +185,78 @@ class EventHandler:
         except Exception as e:
             logging.error(f"Error getting all facilities: {e}")
             raise
+
+    async def handle_facility_validation(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        try:
+            park_id = data.get("data", {}).get("park_id")
+            ticket_type_name = data.get("data", {}).get("ticket_type_name")
+            
+            # 공원 노드 조회
+            park_node = await self.db.nodes.find_one({
+                "node_type": "park",
+                "reference_id": ObjectId(park_id)
+            })
+            
+            if not park_node:
+                return {
+                    "valid": False,
+                    "message": "공원을 찾을 수 없습니다.",
+                    "data": data.get("data")
+                }
+
+            # 공원의 티켓 타입과 허용된 시설 조회
+            park = await self.db.parks.find_one({"_id": ObjectId(park_id)})
+            if not park:
+                return {
+                    "valid": False,
+                    "message": "공원 정보를 찾을 수 없습니다.",
+                    "data": data.get("data")
+                }
+
+            # 티켓 타입 확인
+            ticket_type = next(
+                (t for t in park.get("ticket_types", []) if t["name"] == ticket_type_name),
+                None
+            )
+            
+            if not ticket_type:
+                return {
+                    "valid": False,
+                    "message": "유효하지 않은 티켓 타입입니다.",
+                    "data": data.get("data")
+                }
+
+            # 시설 유효성 검사
+            allowed_facilities = ticket_type.get("allowed_facilities", [])
+            valid_facilities = []
+            
+            for facility_id in allowed_facilities:
+                facility = await self.db.facilities.find_one({"_id": ObjectId(facility_id)})
+                if not facility or str(facility["park_id"]) != park_id:
+                    return {
+                        "valid": False,
+                        "message": f"유효하지 않은 시설이 포함되어 있습니다: {facility_id}",
+                        "data": data.get("data")
+                    }
+                valid_facilities.append(str(facility["_id"]))
+
+            # 모든 검증 통과
+            return {
+                "valid": True,
+                "message": "시설 유효성 검사 완료",
+                "data": {
+                    **data.get("data", {}),
+                    "allowed_facilities": valid_facilities,
+                    "amount": ticket_type.get("price", 0)
+                }
+            }
+
+        except Exception as e:
+            logging.error(f"시설 유효성 검사 중 오류 발생: {str(e)}")
+            return {
+                "valid": False,
+                "message": f"시설 유효성 검사 중 오류가 발생했습니다: {str(e)}",
+                "data": data.get("data")
+            }
 
     # 기타 핸들러들은 동일하게 유지...
