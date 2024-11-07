@@ -31,3 +31,9 @@ class ParkModel(MongoBaseModel):
     ticket_types: List[TicketTypeModel]
     status: str
     
+class ParkUpdateModel(BaseModel):
+    name: Optional[str] = None
+    location: Optional[str] = None
+    description: Optional[str] = None
+    ticket_types: Optional[List[TicketTypeModel]] = None
+    status: Optional[str] = None

@@ -1,7 +1,12 @@
 from fastapi import FastAPI
 from .database import Database
 from .consumer import RabbitMQConsumer
-import os
+from .publisher import EventPublisher
+from motor.motor_asyncio import AsyncIOMotorDatabase
+import logging
+
+# 로깅 설정
+logging.basicConfig(level=logging.INFO)
 
 app = FastAPI(
     title="Structure Manager",
@@ -9,25 +14,50 @@ app = FastAPI(
     version="1.0.0"
 )
 
+async def init_nodes_collection(db: AsyncIOMotorDatabase):
+    try:
+        # nodes 컬렉션이 없으면 생성
+        collections = await db.list_collection_names()
+        if "nodes" not in collections:
+            await db.create_collection("nodes")
+            
+            # 인덱스 생성
+            await db.nodes.create_index("reference_id", unique=True)
+            await db.nodes.create_index("type")
+            
+            logging.info("Nodes collection initialized successfully")
+    except Exception as e:
+        logging.error(f"Failed to initialize nodes collection: {e}")
+        raise
+
 @app.on_event("startup")
 async def startup_event():
-    # 데이터베이스 연결 설정
-    await Database.connect_db()
-    
-    # RabbitMQ Consumer 설정
-    app.state.consumer = RabbitMQConsumer()
-    await app.state.consumer.connect()
+    try:
+        # 데이터베이스 연결 설정
+        await Database.connect_db()
+        db = Database.get_database()
+        
+        # nodes 컬렉션 초기화
+        await init_nodes_collection(db)
+        
+        # RabbitMQ Consumer 설정
+        app.state.consumer = RabbitMQConsumer()
+        await app.state.consumer.connect()
+        
+        # RabbitMQ Publisher 설정
+        app.state.publisher = EventPublisher()
+        await app.state.publisher.connect()
+        
+        logging.info("Application startup completed successfully")
+    except Exception as e:
+        logging.error(f"Application startup failed: {e}")
+        raise
 
 @app.on_event("shutdown")
 async def shutdown_event():
-    # 데이터베이스 연결 종료
     await Database.close_db()
-    
-    # RabbitMQ 연결 종료
     if hasattr(app.state, 'consumer'):
         await app.state.consumer.close()
-
-# 헬스 체크를 위한 기본 엔드포인트
-@app.get("/health")
-async def health_check():
-    return {"status": "healthy"}
+    if hasattr(app.state, 'publisher'):
+        await app.state.publisher.close()
+    logging.info("Application shutdown completed")
