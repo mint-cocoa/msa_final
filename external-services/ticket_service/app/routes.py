@@ -1,28 +1,27 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, HTTPException, Request, Depends
 from .models import CreateTicketForm
 from .database import get_db
-from .publisher import EventPublisher
-from .event_handlers import EventHandler
-from .event_mapping import EventMapper
 import logging
-from datetime import datetime
 import asyncio
+from typing import Dict, Any
 import uuid
 
 router = APIRouter()
 
-@router.post("/")
-async def create_ticket_endpoint(form: CreateTicketForm, db = Depends(get_db)):
-    try:
-        # 이벤트 핸들러 및 매퍼 초기화
-        event_handler = EventHandler(db)
-        event_mapper = EventMapper(event_handler)
-        
-        # 이벤트 발행자 초기화
-        publisher = EventPublisher()
-        await publisher.connect()
+async def wait_for_response(event_handler, timeout: int = 30) -> Dict[str, Any]:
+    """응답을 기다리는 유틸리티 함수"""
+    start_time = asyncio.get_event_loop().time()
+    while asyncio.get_event_loop().time() - start_time < timeout:
+        if event_handler.latest_response:
+            response = event_handler.latest_response
+            event_handler.latest_response = None
+            return response
+        await asyncio.sleep(0.1)
+    raise HTTPException(status_code=408, detail="Response timeout")
 
-        # Structure Manager에 시설 유효성 검사 요청
+@router.post("/tickets/create")
+async def create_ticket_endpoint(form: CreateTicketForm, request: Request):
+    try:
         validation_data = {
             "action": "validate_facilities",
             "data": {
@@ -33,42 +32,30 @@ async def create_ticket_endpoint(form: CreateTicketForm, db = Depends(get_db)):
             }
         }
 
-        # 시설 유효성 검사 이벤트 발행 및 응답 대기
-        response = await publisher.publish_and_wait(
-            exchange="structure_exchange",
+        # 메시지 발행
+        await request.app.state.publisher.publish_and_wait(
             routing_key="structure.validate_facilities",
             data=validation_data,
-            reply_to="ticket_response_queue",
-            correlation_id=str(uuid.uuid4()),
             timeout=30
         )
 
-        # 응답 처리
-        result = await event_mapper.handle_response(
-            routing_key="ticket.response.validate_access",
-            data=response
-        )
+        # 응답 대기
+        response = await wait_for_response(request.app.state.consumer.event_mapper.event_handler)
 
-        if result.get("status") != "success":
+        if response.get("status") != "success":
             raise HTTPException(
                 status_code=400,
-                detail=result.get("message", "시설 유효성 검사 실패")
+                detail=response.get("message", "시설 유효성 검사 실패")
             )
 
         return {
-            "status": "success",
-            "ticket_id": result.get("ticket_id"),
-            "message": result.get("message"),
-            "data": result.get("data")
+            "message": "Ticket created successfully",
+            "ticket_id": response.get("ticket_id"),
+            "data": response.get("data")
         }
 
     except asyncio.TimeoutError:
-        logging.error("시설 유효성 검사 요청 시간 초과")
-        raise HTTPException(status_code=408, detail="요청 시간이 초과되었습니다.")
+        raise HTTPException(status_code=408, detail="Request timeout")
     except Exception as e:
-        logging.error(f"티켓 생성 중 오류 발생: {str(e)}")
-        raise HTTPException(status_code=500, detail="티켓 생성 중 오류가 발생했습니다.")
-    finally:
-        if publisher:
-            await publisher.close()
-
+        logging.error(f"Failed to create ticket: {e}")
+        raise HTTPException(status_code=500, detail="Failed to create ticket")

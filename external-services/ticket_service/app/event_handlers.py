@@ -50,3 +50,13 @@ class EventHandler:
                 "status": "error",
                 "message": f"티켓 생성 중 오류가 발생했습니다: {str(e)}"
             }
+
+    async def handle_error_response(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """에러 응답 처리 메서드"""
+        self.latest_response = data
+        error_message = data.get("message", "알 수 없는 오류가 발생했습니다.")
+        return {
+            "status": "error",
+            "message": error_message,
+            "data": data
+        }

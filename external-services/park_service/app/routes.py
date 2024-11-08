@@ -90,25 +90,3 @@ async def delete_park_endpoint(park_id: str, request: Request):
     except Exception as e:
         logging.error(f"Failed to delete park: {e}")
         raise HTTPException(status_code=500, detail="Failed to delete park")
-
-@router.get("/parks")
-async def get_all_parks_endpoint(request: Request):
-    try:
-        await request.app.state.publisher.publish_structure_update({
-            "action": "get_all",
-            "node_type": "park"
-        })
-        
-        # 응답 대기
-        response = await wait_for_response(request.app.state.consumer.event_mapper.event_handler)
-        
-        if response.get("status") == "success":
-            return {"parks": response.get("data", [])}
-        else:
-            raise HTTPException(status_code=400, detail=response.get("error", "Failed to get parks"))
-            
-    except asyncio.TimeoutError:
-        raise HTTPException(status_code=408, detail="Request timeout")
-    except Exception as e:
-        logging.error(f"Failed to get parks: {e}")
-        raise HTTPException(status_code=500, detail="Failed to get parks")

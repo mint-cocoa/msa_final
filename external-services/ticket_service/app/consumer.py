@@ -17,6 +17,10 @@ class RabbitMQConsumer:
 
     async def connect(self):
         try:
+            # 데이터베이스 연결
+            self.db = get_db()
+            
+            # RabbitMQ 연결
             self.connection = await aio_pika.connect_robust(self.rabbitmq_url)
             self.channel = await self.connection.channel()
             self.exchange = await self.channel.declare_exchange(
@@ -24,102 +28,65 @@ class RabbitMQConsumer:
                 aio_pika.ExchangeType.TOPIC
             )
             
-            self.db = await get_db()
-            # 이벤트 핸들러와 매퍼 초기화
+            # 이벤트 핸들러와 매퍼 초기화 (DB 전달)
             event_handler = EventHandler(self.db)
             self.event_mapper = EventMapper(event_handler)
 
-            # Park 서비스 요청을 위한 큐
-            park_queue = await self.channel.declare_queue(
-                "park_request_queue", 
+            # 티켓 서비스 응답을 위한 큐
+            ticket_queue = await self.channel.declare_queue(
+                "ticket_response_queue", 
                 durable=True
             )
             
-            # Facility 서비스 요청을 위한 큐
-            facility_queue = await self.channel.declare_queue(
-                "facility_request_queue",
-                durable=True
-            )
-            
-            # 토픽 패턴으로 바인딩
-            await park_queue.bind(self.exchange, routing_key="park.*")
-            await facility_queue.bind(self.exchange, routing_key="facility.*")
+            # 티켓 관련 응답에 대한 바인딩
+            await ticket_queue.bind(self.exchange, routing_key="ticket.response.*")
             
             # 메시지 소비 시작
-            await park_queue.consume(self.process_park_request)
-            await facility_queue.consume(self.process_facility_request)
-            
-            logging.info("Successfully connected to RabbitMQ")
+            await ticket_queue.consume(self.process_message)
+            logging.info("Successfully connected to RabbitMQ and initialized ticket service consumer")
             
         except Exception as e:
-            logging.error(f"Failed to connect to RabbitMQ: {e}")
+            logging.error(f"Failed to initialize ticket service consumer: {e}")
             raise
 
-    async def process_park_request(self, message: aio_pika.IncomingMessage):
+    async def process_message(self, message: aio_pika.IncomingMessage):
         async with message.process():
             try:
                 data = json.loads(message.body.decode())
                 routing_key = message.routing_key
                 
-                # Park 서비스 요청 처리
-                result = await self.event_mapper.handle_park_request(data)
+                # 티켓 서비스 응답 처리
+                result = await self.event_mapper.handle_response(routing_key, data)
                 
-                # 응답 발행
-                response_routing_key = f"park.response.{data.get('action', 'unknown')}"
-                await self.exchange.publish(
-                    aio_pika.Message(
-                        body=json.dumps(result).encode(),
-                        content_type="application/json"
-                    ),
-                    routing_key=response_routing_key
-                )
+                # 응답이 필요한 경우 처리
+                if message.reply_to:
+                    await self.exchange.publish(
+                        aio_pika.Message(
+                            body=json.dumps(result).encode(),
+                            correlation_id=message.correlation_id,
+                            content_type="application/json"
+                        ),
+                        routing_key=message.reply_to
+                    )
                 
-                logging.info(f"Successfully processed park request: {routing_key}")
-                
-            except Exception as e:
-                logging.error(f"Error processing park request: {e}")
-                error_response = {"error": str(e)}
-                await self.exchange.publish(
-                    aio_pika.Message(
-                        body=json.dumps(error_response).encode(),
-                        content_type="application/json"
-                    ),
-                    routing_key="park.response.error"
-                )
-
-    async def process_facility_request(self, message: aio_pika.IncomingMessage):
-        async with message.process():
-            try:
-                data = json.loads(message.body.decode())
-                routing_key = message.routing_key
-                
-                # Facility 서비스 요청 처리
-                result = await self.event_mapper.handle_facility_request(data)
-                
-                # 응답 발행
-                response_routing_key = f"facility.response.{data.get('action', 'unknown')}"
-                await self.exchange.publish(
-                    aio_pika.Message(
-                        body=json.dumps(result).encode(),
-                        content_type="application/json"
-                    ),
-                    routing_key=response_routing_key
-                )
-                
-                logging.info(f"Successfully processed facility request: {routing_key}")
+                logging.info(f"Successfully processed ticket service response: {routing_key}")
                 
             except Exception as e:
-                logging.error(f"Error processing facility request: {e}")
-                error_response = {"error": str(e)}
-                await self.exchange.publish(
-                    aio_pika.Message(
-                        body=json.dumps(error_response).encode(),
-                        content_type="application/json"
-                    ),
-                    routing_key="facility.response.error"
-                )
+                logging.error(f"Error processing ticket service response: {e}")
+                if message.reply_to:
+                    error_response = {
+                        "status": "error",
+                        "message": f"티켓 처리 중 오류 발생: {str(e)}"
+                    }
+                    await self.exchange.publish(
+                        aio_pika.Message(
+                            body=json.dumps(error_response).encode(),
+                            correlation_id=message.correlation_id,
+                            content_type="application/json"
+                        ),
+                        routing_key=message.reply_to
+                    )
 
     async def close(self):
         if self.connection:
             await self.connection.close()
-            

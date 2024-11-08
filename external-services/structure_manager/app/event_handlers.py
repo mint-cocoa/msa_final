@@ -21,9 +21,9 @@ class EventHandler:
             # nodes 컬렉션에 구조 정보 저장
             node_data = {
                 "type": "park",
-                "reference_id": park_id,
+                "reference_id": ObjectId(park_id),
                 "name": park_data.get("name"),
-                "park_id": park_id,
+                "facilities": [],
                 "created_at": datetime.utcnow(),
                 "updated_at": datetime.utcnow()
             }
@@ -61,7 +61,7 @@ class EventHandler:
     async def handle_facility_create(self, data: Dict[str, Any]) -> Dict[str, Any]:
         try:
             facility_data = data.get("data", {})
-            park_id  = data.get("park_id")
+            park_id = data.get("park_id")
             
             if not park_id:
                 raise Exception("Facility must have a parent park")
@@ -69,7 +69,7 @@ class EventHandler:
             # 공원 노드 존재 확인
             park_node = await self.db.nodes.find_one({
                 "type": "park",
-                "reference_id": park_id
+                "reference_id": ObjectId(park_id)
             })
             if not park_node:
                 raise Exception("park not found")
@@ -80,7 +80,7 @@ class EventHandler:
             
             # 공원 노드의 facilities 배열에 시설물 ID 추가
             await self.db.nodes.update_one(
-                {"reference_id": park_id},
+                {"reference_id": ObjectId(park_id)},
                 {"$push": {"facilities": facility_id}}
             )
             
@@ -188,71 +188,49 @@ class EventHandler:
 
     async def handle_facility_validation(self, data: Dict[str, Any]) -> Dict[str, Any]:
         try:
+            logging.info(f"시설 유효성 검사 시작: {data}")
             park_id = data.get("data", {}).get("park_id")
-            ticket_type_name = data.get("data", {}).get("ticket_type_name")
+            facility_ids = data.get("data", {}).get("facility_ids")
             
+            logging.info(f"공원 노드 조회 시작: park_id={park_id}")
             # 공원 노드 조회
             park_node = await self.db.nodes.find_one({
-                "node_type": "park",
+                "type": "park",
                 "reference_id": ObjectId(park_id)
             })
             
             if not park_node:
+                logging.warning(f"park not found: park_id={park_id}")
                 return {
                     "valid": False,
-                    "message": "공원을 찾을 수 없습니다.",
+                    "message": "park not found",
                     "data": data.get("data")
                 }
 
-            # 공원의 티켓 타입과 허용된 시설 조회
-            park = await self.db.parks.find_one({"_id": ObjectId(park_id)})
-            if not park:
-                return {
-                    "valid": False,
-                    "message": "공원 정보를 찾을 수 없습니다.",
-                    "data": data.get("data")
-                }
-
-            # 티켓 타입 확인
-            ticket_type = next(
-                (t for t in park.get("ticket_types", []) if t["name"] == ticket_type_name),
-                None
-            )
+            logging.info(f"facility validation start: facility_ids={facility_ids}")
+            # 시설 유효성 검사 - park_node의 facilities 배열 활용
+            park_facilities = set(str(facility_id) for facility_id in park_node.get("facilities", []))
             
-            if not ticket_type:
-                return {
-                    "valid": False,
-                    "message": "유효하지 않은 티켓 타입입니다.",
-                    "data": data.get("data")
-                }
-
-            # 시설 유효성 검사
-            allowed_facilities = ticket_type.get("allowed_facilities", [])
-            valid_facilities = []
-            
-            for facility_id in allowed_facilities:
-                facility = await self.db.facilities.find_one({"_id": ObjectId(facility_id)})
-                if not facility or str(facility["park_id"]) != park_id:
+            for facility_id in facility_ids:
+                if str(facility_id) not in park_facilities:
+                    logging.warning(f"invalid facility found: facility_id={facility_id}, park_id={park_id}")
                     return {
                         "valid": False,
-                        "message": f"유효하지 않은 시설이 포함되어 있습니다: {facility_id}",
+                        "message": f"invalid facility found: {facility_id}",
                         "data": data.get("data")
                     }
-                valid_facilities.append(str(facility["_id"]))
 
-            # 모든 검증 통과
+            logging.info("시설 유효성 검사 완료: 모든 검증 통과")
             return {
                 "valid": True,
                 "message": "시설 유효성 검사 완료",
                 "data": {
                     **data.get("data", {}),
-                    "allowed_facilities": valid_facilities,
-                    "amount": ticket_type.get("price", 0)
                 }
             }
 
         except Exception as e:
-            logging.error(f"시설 유효성 검사 중 오류 발생: {str(e)}")
+            logging.error(f"시설 유효성 검사 중 오류 발생: {str(e)}", exc_info=True)
             return {
                 "valid": False,
                 "message": f"시설 유효성 검사 중 오류가 발생했습니다: {str(e)}",

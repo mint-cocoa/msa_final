@@ -1,5 +1,8 @@
 from fastapi import FastAPI
 from .routes import router as ticket_router
+from .publisher import EventPublisher
+from .consumer import RabbitMQConsumer
+import logging
 
 app = FastAPI(
     title="Ticket Service",
@@ -8,8 +11,32 @@ app = FastAPI(
     root_path="/tickets"
 )
 
-@app.get("/")
-def read_root():
-    return {"message": "Welcome to the Ticket Service"}
+@app.on_event("startup")
+async def startup_event():
+    try:
+        # RabbitMQ Publisher 설정
+        app.state.publisher = EventPublisher()
+        await app.state.publisher.connect()
+        
+        # RabbitMQ Consumer 설정
+        app.state.consumer = RabbitMQConsumer()
+        await app.state.consumer.connect()
+        
+        logging.info("Successfully initialized RabbitMQ connections")
+    except Exception as e:
+        logging.error(f"Failed to initialize RabbitMQ connections: {e}")
+        raise
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    try:
+        # RabbitMQ 연결 종료
+        if hasattr(app.state, 'publisher'):
+            await app.state.publisher.close()
+        if hasattr(app.state, 'consumer'):
+            await app.state.consumer.close()
+        logging.info("Successfully closed RabbitMQ connections")
+    except Exception as e:
+        logging.error(f"Error closing RabbitMQ connections: {e}")
 
 app.include_router(ticket_router, prefix="/api")
