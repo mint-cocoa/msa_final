@@ -17,6 +17,7 @@ COPY . .
 
 # 환경변수 설정
 ENV REDIS_URL="redis://redis:6379"
+ENV TEST_MODE="true"
 
 EXPOSE 8000
 

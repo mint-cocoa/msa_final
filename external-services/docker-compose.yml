@@ -99,7 +99,7 @@ services:
     ports:
       - "8005:8000"
     environment:
-      - MONGODB_URI=mongodb://root:example@mongodb:27017/structure?authSource=admin
+      - MONGODB_URI= 
       - DATABASE_NAME=structure
       - REDIS_URL=redis://redis:6379
     depends_on:

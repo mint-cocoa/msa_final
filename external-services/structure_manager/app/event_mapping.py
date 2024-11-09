@@ -20,8 +20,8 @@ class EventMapper:
             "facility.get": self.event_handler.handle_facility_get,
             "facility.get_all": self.event_handler.handle_facility_get_all,
             
-            # Structure 요청 핸들러
-            "structure.validate_facilities": self.event_handler.handle_facility_validation
+            # Ticket 요청 핸들러
+            "ticket.validate": self.event_handler.handle_ticket_validation
         }
 
     async def handle_park_request(self, data: Dict[str, Any]) -> Dict[str, Any]:
@@ -64,10 +64,26 @@ class EventMapper:
             
             if handler:
                 result = await handler(data)
-                return result
+                return result   
             else:
                 logging.warning(f"No handler found for structure action: {action}")
                 return {"status": "error", "message": "Unknown structure action"}
         except Exception as e:
             logging.error(f"Error handling structure request: {e}")
             raise
+        
+    async def handle_ticket_request(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        try:
+            action = data.get("action")
+            routing_key = f"ticket.{action}"
+            handler = self.request_handlers.get(routing_key)    
+            
+            if handler:
+                result = await handler(data)
+                return result
+            else:
+                logging.warning(f"No handler found for ticket action: {action}")
+                return {"status": "error", "message": "Unknown ticket action"}
+        except Exception as e:
+            logging.error(f"Error handling ticket request: {e}")
+            raise   

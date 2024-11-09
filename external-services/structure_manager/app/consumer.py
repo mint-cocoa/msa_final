@@ -47,18 +47,25 @@ class RabbitMQConsumer:
                 durable=True
             )
             
+            # Ticket 서비스 요청을 위한 큐
+            ticket_queue = await self.channel.declare_queue(
+                "ticket_request_queue",
+                durable=True
+            )
+            
             # 토픽 패턴으로 바인딩
             await park_queue.bind(self.exchange, routing_key="park.*")
             await facility_queue.bind(self.exchange, routing_key="facility.*")
             await structure_queue.bind(self.exchange, routing_key="structure.*")
-            
+            await ticket_queue.bind(self.exchange, routing_key="ticket.*")
             # 메시지 소비 시작
             await park_queue.consume(self.process_park_request)
             await facility_queue.consume(self.process_facility_request)
             await structure_queue.consume(self.process_structure_request)
+            await ticket_queue.consume(self.process_ticket_request)
             
             logging.info("Successfully connected to RabbitMQ")
-            
+
         except Exception as e:
             logging.error(f"Failed to connect to RabbitMQ: {e}")
             raise
@@ -146,13 +153,16 @@ class RabbitMQConsumer:
                         ),
                         routing_key=message.reply_to
                     )
-                
-                logging.info(f"Successfully processed structure request: {routing_key}")
+                    logging.info(f"Successfully sent response for: {routing_key}")
                 
             except Exception as e:
                 logging.error(f"Error processing structure request: {e}")
-                error_response = {"error": str(e)}
                 if message.reply_to:
+                    error_response = {
+                        "valid": False,
+                        "message": str(e),
+                        "data": {}
+                    }
                     await self.exchange.publish(
                         aio_pika.Message(
                             body=json.dumps(error_response).encode(),
@@ -160,8 +170,44 @@ class RabbitMQConsumer:
                             correlation_id=message.correlation_id
                         ),
                         routing_key=message.reply_to
-                    )
+                    )   
 
+    async def process_ticket_request(self, message: aio_pika.IncomingMessage):
+        async with message.process():
+            try:
+                data = json.loads(message.body.decode())
+                routing_key = message.routing_key
+                
+                # Ticket 서비스 요청 처리
+                result = await self.event_mapper.handle_ticket_request(data)  
+                 
+                response_routing_key = f"ticket.response.{data.get('action', 'unknown')}"
+                await self.exchange.publish(
+                    aio_pika.Message(
+                        body=json.dumps(result).encode(),
+                        content_type="application/json"
+                    ),
+                    routing_key=response_routing_key
+                )
+                logging.info(f"Successfully sent response for: {routing_key}")
+                
+            except Exception as e:
+                logging.error(f"Error processing ticket request: {e}")
+                if message.reply_to:
+                    error_response = {
+                        "valid": False,
+                        "message": str(e),
+                        "data": {}
+                    }
+                    await self.exchange.publish(
+                        aio_pika.Message(
+                            body=json.dumps(error_response).encode(),
+                            content_type="application/json",
+                            correlation_id=message.correlation_id
+                        ),
+                        routing_key=message.reply_to
+                    )    
+                
     async def close(self):
         if self.connection:
             await self.connection.close()

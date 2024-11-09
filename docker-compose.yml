@@ -36,6 +36,58 @@ services:
       timeout: 5s
       retries: 5
 
+  redis:
+    image: redis:latest
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - theme_park_network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis-service:
+    build:
+      context: ./internal_services/redis_service
+      dockerfile: Dockerfile
+    environment:
+      REDIS_URL: "redis://redis:6379"
+      FACILITY_SERVICE_URL: "http://facility-service:8000"
+    depends_on:
+      redis:
+        condition: service_healthy
+      facility-service:
+        condition: service_started
+    ports:
+      - "8004:8000"
+    networks:
+      - theme_park_network
+    restart: on-failure
+
+  ride-reservation-service:
+    build:
+      context: ./internal_services/ride_reservation_service
+      dockerfile: Dockerfile
+    environment:
+      REDIS_URL: "redis://redis:6379"
+      REDIS_SERVICE_URL: "http://redis-service:8000"
+      SECRET_KEY: "your-secret-key"
+      TEST_MODE: "true"  # 개발/테스트 환경에서만 true로 설정
+    depends_on:
+      redis:
+        condition: service_healthy
+      redis-service:
+        condition: service_started
+    ports:
+      - "8005:8000"
+    networks:
+      - theme_park_network
+    restart: on-failure
+
   structure-manager:
     build:
       context: ./external-services/structure_manager
@@ -79,8 +131,8 @@ services:
       context: ./external-services/facility_service
       dockerfile: Dockerfile
     environment:
-      MONGODB_URI: "mongodb://root:example@mongodb:27017/external?authSource=admin"
-      DATABASE_NAME: "external"
+      MONGODB_URI: "mongodb://root:example@mongodb:27017/structure?authSource=admin"
+      DATABASE_NAME: "structure"
       RABBITMQ_URL: "amqp://guest:guest@rabbitmq:5672/"
     depends_on:
       mongodb:
@@ -100,8 +152,8 @@ services:
       context: ./external-services/ticket_service
       dockerfile: Dockerfile
     environment:
-      MONGODB_URI: "mongodb://root:example@mongodb:27017/external?authSource=admin"
-      DATABASE_NAME: "external"
+      MONGODB_URI: "mongodb://root:example@mongodb:27017/structure?authSource=admin"
+      DATABASE_NAME: "structure"
       RABBITMQ_URL: "amqp://guest:guest@rabbitmq:5672/"
     depends_on:
       mongodb:
@@ -122,4 +174,5 @@ networks:
 
 volumes:
   mongodb_data:
-  rabbitmq_data: 
+  rabbitmq_data:
+  redis_data:

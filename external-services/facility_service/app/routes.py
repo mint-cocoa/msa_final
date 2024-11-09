@@ -1,7 +1,8 @@
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request, Depends
 from .models import FacilityModel
 import logging
-
+from motor.motor_asyncio import AsyncIOMotorDatabase
+from .database import get_db
 router = APIRouter()
 
 @router.post("/parks/{park_id}/facilities")
@@ -75,3 +76,33 @@ async def get_park_facilities_endpoint(park_id: str, request: Request):
     except Exception as e:
         logging.error(f"Failed to send park facilities retrieval event: {e}")
         raise HTTPException(status_code=500, detail="Failed to get park facilities")
+
+@router.get("/facilities/active")
+async def get_active_facilities(
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    try:
+        logging.info("Attempting to fetch active facilities from database")
+        logging.info(f"Database name: {db.name}")
+        logging.info(f"Available collections: {await db.list_collection_names()}")
+        
+        facilities = await db.facilities.find({"status": "active"}).to_list(length=None)
+        logging.info(f"Found {len(facilities)} active facilities")
+            
+        for facility in facilities:
+            facility["_id"] = str(facility["_id"])
+            
+        return {
+            "status": "success",
+            "data": {
+                "facilities": facilities,
+                "total": len(facilities)
+            }
+        }
+    except Exception as e:
+        logging.error(f"Failed to get active facilities: {e}")
+        logging.exception("Detailed error:")
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Failed to retrieve active facilities: {str(e)}"
+        )

@@ -3,6 +3,17 @@ from fastapi import FastAPI
 from .routes import router
 from .publisher import EventPublisher
 from .consumer import RabbitMQConsumer
+from .database import Database
+import logging
+
+# 로깅 설정 추가
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler()
+    ]
+)
 
 app = FastAPI(
     title="Facility Service",
@@ -20,7 +31,12 @@ async def startup_event():
     # RabbitMQ Consumer 설정
     app.state.consumer = RabbitMQConsumer()
     await app.state.consumer.connect()
+    
+    # MongoDB 연결 테스트
+    # 데이터베이스 연결 설정
+    await Database.connect_db()
 
+    
 @app.on_event("shutdown")
 async def shutdown_event():
     # RabbitMQ 연결 종료

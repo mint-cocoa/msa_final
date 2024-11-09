@@ -186,9 +186,9 @@ class EventHandler:
             logging.error(f"Error getting all facilities: {e}")
             raise
 
-    async def handle_facility_validation(self, data: Dict[str, Any]) -> Dict[str, Any]:
+    async def handle_ticket_validation(self, data: Dict[str, Any]) -> Dict[str, Any]:
         try:
-            logging.info(f"시설 유효성 검사 시작: {data}")
+            logging.info(f"티켓 검증 시작: {data}")
             park_id = data.get("data", {}).get("park_id")
             facility_ids = data.get("data", {}).get("facility_ids")
             
@@ -200,41 +200,37 @@ class EventHandler:
             })
             
             if not park_node:
-                logging.warning(f"park not found: park_id={park_id}")
+                logging.warning(f"공원 찾을 수 없음: park_id={park_id}")
                 return {
                     "valid": False,
-                    "message": "park not found",
+                    "message": "can't find park",
                     "data": data.get("data")
                 }
 
-            logging.info(f"facility validation start: facility_ids={facility_ids}")
+            logging.info(f"시설 유효성 검사 시작: facility_ids={facility_ids}")
             # 시설 유효성 검사 - park_node의 facilities 배열 활용
             park_facilities = set(str(facility_id) for facility_id in park_node.get("facilities", []))
             
             for facility_id in facility_ids:
                 if str(facility_id) not in park_facilities:
-                    logging.warning(f"invalid facility found: facility_id={facility_id}, park_id={park_id}")
+                    logging.warning(f"유효하지 않은 시설 발견: facility_id={facility_id}, park_id={park_id}")
                     return {
                         "valid": False,
-                        "message": f"invalid facility found: {facility_id}",
+                        "message": f"유효하지 않은 시설 발견: {facility_id}",
                         "data": data.get("data")
                     }
 
             logging.info("시설 유효성 검사 완료: 모든 검증 통과")
             return {
                 "valid": True,
-                "message": "시설 유효성 검사 완료",
-                "data": {
-                    **data.get("data", {}),
-                }
+                "message": "ticket validation success",
+                "data": data.get("data")
             }
 
         except Exception as e:
             logging.error(f"시설 유효성 검사 중 오류 발생: {str(e)}", exc_info=True)
             return {
                 "valid": False,
-                "message": f"시설 유효성 검사 중 오류가 발생했습니다: {str(e)}",
+                "message": f"시설 유효성 검사 중 오류 발생: {str(e)}",
                 "data": data.get("data")
             }
-
-    # 기타 핸들러들은 동일하게 유지...

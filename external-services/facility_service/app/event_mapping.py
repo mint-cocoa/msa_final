@@ -11,6 +11,7 @@ class EventMapper:
             "facility.response.delete": self.event_handler.handle_delete_response,
             "facility.response.get": self.event_handler.handle_get_response,
             "facility.response.get_all": self.event_handler.handle_get_response,
+    
         }
 
     async def handle_response(self, routing_key: str, data: Dict[str, Any]) -> Dict[str, Any]:

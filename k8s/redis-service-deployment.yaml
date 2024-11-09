@@ -20,6 +20,8 @@ spec:
         env:
         - name: REDIS_URL
           value: "redis://redis:6379"
+        - name: FACILITY_SERVICE_URL
+          value: "http://facility-service:8000"
         readinessProbe:
           httpGet:
             path: /redis/health

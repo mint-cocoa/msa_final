@@ -4,5 +4,5 @@ python-dotenv
 pydantic[email]
 aio-pika
 httpx
-bson
+pymongo
 motor

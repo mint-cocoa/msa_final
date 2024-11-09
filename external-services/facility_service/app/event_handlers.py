@@ -40,4 +40,4 @@ class EventHandler:
             return {"status": "success", "data": data}
         except Exception as e:
             logging.error(f"Error handling get response: {e}")
-            raise 
+            raise             

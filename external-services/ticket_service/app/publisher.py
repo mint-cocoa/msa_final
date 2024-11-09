@@ -1,70 +1,39 @@
-from .rabbitmq import RabbitMQClient
-import os
-import asyncio
-import json
-import logging
 from typing import Optional, Dict, Any
-import uuid
+from .rabbitmq import RabbitMQClient
+from fastapi import HTTPException
+import os
+import logging
+
+logger = logging.getLogger(__name__)
 
 class EventPublisher:
-    def __init__(self, rabbitmq_url: str = None):
+    def __init__(self, rabbitmq_url: Optional[str] = None):
         self.rabbitmq_url = rabbitmq_url or os.getenv("RABBITMQ_URL", "amqp://guest:guest@rabbitmq:5672/")
         self.client = RabbitMQClient(self.rabbitmq_url)
-        self._response = None
-        self._response_event = None
+        self._connected = False
 
-    async def connect(self):
-        await self.client.connect()
-        
-    async def handle_response(self, message):
-        """응답 메시지 처리"""
+    async def connect(self) -> None:
         try:
-            self._response = json.loads(message.decode())
-            if self._response_event:
-                self._response_event.set()
+            await self.client.connect()
+            self._connected = True
         except Exception as e:
-            logging.error(f"응답 처리 중 오류 발생: {str(e)}")
+            logger.error(f"RabbitMQ 연결 실패: {str(e)}")
+            raise HTTPException(status_code=500, detail="RabbitMQ 연결 실패")
 
-    async def publish_and_wait(
-        self, 
-        routing_key: str, 
-        data: Dict[str, Any], 
-        timeout: int = 30
-    ) -> Optional[Dict[str, Any]]:
-        """메시지를 발행하고 응답을 기다림"""
+    async def publish_ticket_validation(self, data: Dict[str, Any]) -> None:
+        if not self._connected:
+            await self.connect()
         try:
-            # 응답 대기를 위한 이벤트 설정
-            self._response = None
-            self._response_event = asyncio.Event()
-            
-            # 응답 큐 설정
-            response_queue = await self.client.setup_response_queue(self.handle_response)
-            
-            # correlation_id 생성
-            correlation_id = data.get("correlation_id", str(uuid.uuid4()))
-            data["correlation_id"] = correlation_id
-            
-            # 메시지 발행
-            await self.client.publish(
-                routing_key=routing_key,
-                message=data,
-                correlation_id=correlation_id,
-                reply_to=response_queue.name
-            )
-            
-            # 응답 대기
+            await self.client.publish('ticket.validate', data)
+        except Exception as e:
+            logger.error(f"ticket validation publish error: {str(e)}")      
+            raise HTTPException(status_code=500, detail="ticket validation publish error")
+         
+    async def close(self) -> None:
+        if self._connected:
             try:
-                await asyncio.wait_for(self._response_event.wait(), timeout)
-                return self._response
-            except asyncio.TimeoutError:
-                logging.error("응답 대기 시간 초과")
-                raise
-                
-        except Exception as e:
-            logging.error(f"메시지 발행 중 오류 발생: {str(e)}")
-            raise
-        finally:
-            self._response_event = None
-
-    async def close(self):
-        await self.client.close() 
+                await self.client.close()
+                self._connected = False
+            except Exception as e:
+                logger.error(f"RabbitMQ 연결 종료 실패: {str(e)}")
+                raise HTTPException(status_code=500, detail="RabbitMQ 연결 종료 실패")

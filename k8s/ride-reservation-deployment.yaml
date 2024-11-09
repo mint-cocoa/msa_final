@@ -24,6 +24,12 @@ spec:
           value: "reservations"
         - name: REDIS_URL
           value: "redis://redis:6379"
+        - name: REDIS_SERVICE_URL
+          value: "http://redis-service:8000"
+        - name: SECRET_KEY
+          value: "your-secret-key"
+        - name: TEST_MODE
+          value: "true"
         readinessProbe:
           httpGet:
             path: /reservations/health
@@ -43,6 +49,13 @@ spec:
           limits:
             cpu: "500m"
             memory: "512Mi"
+      initContainers:
+      - name: wait-for-redis
+        image: busybox
+        command: ['sh', '-c', 'until nc -z redis 6379; do echo waiting for redis; sleep 2; done;']
+      - name: wait-for-redis-service
+        image: busybox
+        command: ['sh', '-c', 'until nc -z redis-service 8000; do echo waiting for redis-service; sleep 2; done;']
 ---
 apiVersion: v1
 kind: Service

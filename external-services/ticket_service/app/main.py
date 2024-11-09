@@ -3,7 +3,7 @@ from .routes import router as ticket_router
 from .publisher import EventPublisher
 from .consumer import RabbitMQConsumer
 import logging
-
+import os
 app = FastAPI(
     title="Ticket Service",
     description="Service for managing tickets",
@@ -19,7 +19,8 @@ async def startup_event():
         await app.state.publisher.connect()
         
         # RabbitMQ Consumer 설정
-        app.state.consumer = RabbitMQConsumer()
+        rabbitmq_url = os.getenv("RABBITMQ_URL", "amqp://guest:guest@rabbitmq:5672/")
+        app.state.consumer = RabbitMQConsumer(rabbitmq_url=rabbitmq_url)
         await app.state.consumer.connect()
         
         logging.info("Successfully initialized RabbitMQ connections")
