@@ -13,62 +13,90 @@ spec:
         backend:
           service:
             name: user-service
-            port: 
+            port:
               number: 8000
       - path: /parks
         pathType: Prefix
         backend:
           service:
             name: park-service
-            port: 
+            port:
               number: 8000
       - path: /facilities
         pathType: Prefix
         backend:
           service:
             name: facility-service
-            port: 
+            port:
               number: 8000
       - path: /tickets
         pathType: Prefix
         backend:
           service:
             name: ticket-service
-            port: 
+            port:
               number: 8000
       - path: /reservations
         pathType: Prefix
         backend:
           service:
             name: ride-reservation-service
-            port: 
+            port:
               number: 8000
       - path: /notifications
         pathType: Prefix
         backend:
           service:
             name: notification-service
-            port: 
+            port:
               number: 8000
       - path: /redis
         pathType: Prefix
         backend:
           service:
             name: redis-service
-            port: 
+            port:
               number: 8000
       - path: /structure
         pathType: Prefix
         backend:
           service:
             name: structure-manager
-            port: 
+            port:
               number: 8000
       - path: /mongo-express
         pathType: Prefix
         backend:
           service:
             name: mongo-express
-            port: 
+            port:
               number: 8081
+      - path: /mongo-facility
+        pathType: Prefix
+        backend:
+          service:
+            name: mongodb-facility
+            port:
+              number: 27017
+      - path: /mongo-park
+        pathType: Prefix
+        backend:
+          service:
+            name: mongodb-park
+            port:
+              number: 27017
+      - path: /mongo-structure
+        pathType: Prefix
+        backend:
+          service:
+            name: mongodb-structure
+            port:
+              number: 27017
+      - path: /mongo-ticket
+        pathType: Prefix
+        backend:
+          service:
+            name: mongodb-ticket
+            port:
+              number: 27017
   
