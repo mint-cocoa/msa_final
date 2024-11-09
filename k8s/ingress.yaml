@@ -64,39 +64,3 @@ spec:
             name: structure-manager
             port:
               number: 8000
-      - path: /mongo-express
-        pathType: Prefix
-        backend:
-          service:
-            name: mongo-express
-            port:
-              number: 8081
-      - path: /mongo-facility
-        pathType: Prefix
-        backend:
-          service:
-            name: mongodb-facility
-            port:
-              number: 27017
-      - path: /mongo-park
-        pathType: Prefix
-        backend:
-          service:
-            name: mongodb-park
-            port:
-              number: 27017
-      - path: /mongo-structure
-        pathType: Prefix
-        backend:
-          service:
-            name: mongodb-structure
-            port:
-              number: 27017
-      - path: /mongo-ticket
-        pathType: Prefix
-        backend:
-          service:
-            name: mongodb-ticket
-            port:
-              number: 27017
-  
