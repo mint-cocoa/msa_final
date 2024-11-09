@@ -5,20 +5,20 @@ import logging
 class Database:
     client: AsyncIOMotorClient = None
     db: AsyncIOMotorDatabase = None
-    database_name = os.getenv("DATABASE_NAME", "structure")
+    database_name = os.getenv("DATABASE_NAME", "facilities")
 
     @classmethod
     async def connect_db(cls):
         try:
-            mongodb_uri = os.getenv("MONGODB_URI", "mongodb://localhost:27017")
+            mongodb_uri = os.getenv("MONGODB_URI", "mongodb://root:example@mongodb-facility:27017/facilities?authSource=admin")
             cls.client = AsyncIOMotorClient(mongodb_uri)
             cls.db = cls.client[cls.database_name]
             
             # 연결 테스트
             await cls.db.command("ping")
-            logging.info("Successfully connected to MongoDB")
+            logging.info("Successfully connected to MongoDB Facility Database")
         except Exception as e:
-            logging.error(f"Failed to connect to MongoDB: {e}")
+            logging.error(f"Failed to connect to MongoDB Facility: {e}")
             raise
         
     @classmethod

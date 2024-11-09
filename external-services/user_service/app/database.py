@@ -1,34 +1,39 @@
-# user_service/app/utils.py
+from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
 import os
-from motor.motor_asyncio import AsyncIOMotorClient
-from dotenv import load_dotenv
 import logging
-load_dotenv()
 
-MONGODB_URI = os.getenv("MONGODB_URI", "mongodb://root:example@mongodb:27017/external?authSource=admin")
-DATABASE_NAME = os.getenv("DATABASE_NAME", "external")
 class Database:
     client: AsyncIOMotorClient = None
-    
+    db: AsyncIOMotorDatabase = None
+    database_name = os.getenv("DATABASE_NAME", "facilities")
+
     @classmethod
     async def connect_db(cls):
-        if cls.client is None:
-            cls.client = AsyncIOMotorClient(
-                MONGODB_URI,
-                maxPoolSize=100,  # 연결 풀 크기 설정
-                minPoolSize=20    # 최소 유지할 연결 수
-            )
-            logging.info("Created MongoDB connection pool")
-    
+        try:
+            mongodb_uri = os.getenv("MONGODB_URI", "mongodb://localhost:27017")
+            cls.client = AsyncIOMotorClient(mongodb_uri)
+            cls.db = cls.client[cls.database_name]
+            
+            # 연결 테스트
+            await cls.db.command("ping")
+            logging.info("Successfully connected to MongoDB")
+        except Exception as e:
+            logging.error(f"Failed to connect to MongoDB: {e}")
+            raise
+        
     @classmethod
     async def close_db(cls):
         if cls.client is not None:
             cls.client.close()
-            cls.client = None
-            logging.info("Closed MongoDB connection pool")
-            
-            
-async def get_db():
-    if Database.client is None:
+            logging.info("MongoDB connection closed")
+
+    @classmethod
+    def get_database(cls) -> AsyncIOMotorDatabase:
+        if cls.db is None:
+            raise Exception("Database not initialized. Call connect_db() first.")
+        return cls.db
+
+async def get_db() -> AsyncIOMotorDatabase:
+    if Database.db is None:
         await Database.connect_db()
-    return Database.client[DATABASE_NAME]
+    return Database.get_database()

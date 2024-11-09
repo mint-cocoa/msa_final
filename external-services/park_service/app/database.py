@@ -1,32 +1,39 @@
-# user_service/app/utils.py (유사하게 park_service 및 facility_service에도 생성)
+from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
 import os
 import logging
-from motor.motor_asyncio import AsyncIOMotorClient
-from dotenv import load_dotenv
 
-load_dotenv()
+class Database:
+    client: AsyncIOMotorClient = None
+    db: AsyncIOMotorDatabase = None
+    database_name = os.getenv("DATABASE_NAME", "parks")
 
-MONGODB_URI = os.getenv("MONGODB_URI", "mongodb://root:example@mongodb:27017/external?authSource=admin")
-DATABASE_NAME = os.getenv("DATABASE_NAME", "external")
+    @classmethod
+    async def connect_db(cls):
+        try:
+            mongodb_uri = os.getenv("MONGODB_URI", "mongodb://root:example@mongodb-park:27017/parks?authSource=admin")
+            cls.client = AsyncIOMotorClient(mongodb_uri)
+            cls.db = cls.client[cls.database_name]
+            
+            # 연결 테스트
+            await cls.db.command("ping")
+            logging.info("Successfully connected to MongoDB Park Database")
+        except Exception as e:
+            logging.error(f"Failed to connect to MongoDB Park: {e}")
+            raise
+        
+    @classmethod
+    async def close_db(cls):
+        if cls.client is not None:
+            cls.client.close()
+            logging.info("MongoDB connection closed")
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+    @classmethod
+    def get_database(cls) -> AsyncIOMotorDatabase:
+        if cls.db is None:
+            raise Exception("Database not initialized. Call connect_db() first.")
+        return cls.db
 
-async def get_database():
-    try:
-        client = AsyncIOMotorClient(MONGODB_URI)
-        await client.admin.command('ismaster')
-        logger.info(f"Successfully connected to MongoDB: {DATABASE_NAME}")
-        return client[DATABASE_NAME]
-    except Exception as e:
-        logger.error(f"Failed to connect to MongoDB: {e}")
-        raise
-
-
-async def get_db():
-    db = await get_database()  # 데이터베이스 연결 객체를 가져옴
-    try:
-        yield db 
-    finally:
-        pass
-    
+async def get_db() -> AsyncIOMotorDatabase:
+    if Database.db is None:
+        await Database.connect_db()
+    return Database.get_database()

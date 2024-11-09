@@ -5,6 +5,8 @@ import logging
 import asyncio
 from typing import Dict, Any
 import uuid
+import json
+import base64
 
 router = APIRouter()
 
@@ -25,15 +27,25 @@ async def validate_ticket_endpoint(form: TicketValidationModel, request: Request
     try:    
         await request.app.state.publisher.publish_ticket_validation({
             "action": "validate",
-             "data": {
+            "data": {
                 "user_id": form.user_id,
                 "park_id": form.park_id,
                 "ticket_type_name": form.ticket_type_name,
                 "facility_ids": form.facility_ids
             }
         })
-        response = await wait_for_response(request.app.state.consumer.event_handler)
-        return response
+        
+        response = await request.app.state.consumer.event_handler.wait_for_response()
+        
+        # response를 JSON 문자열로 변환 후 base64로 인코딩
+        json_response = json.dumps(response)
+        encoded_response = base64.b64encode(json_response.encode('utf-8')).decode('utf-8')
+        
+        return {"encoded_response": encoded_response}
+        
+    except TimeoutError:
+        logging.error("Ticket validation response timeout")
+        raise HTTPException(status_code=408, detail="Response timeout")
     except Exception as e:
         logging.error(f"Failed to send ticket validation event: {e}")
         raise HTTPException(status_code=500, detail="Failed to validate ticket")

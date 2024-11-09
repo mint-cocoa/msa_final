@@ -4,7 +4,7 @@ from .consumer import RabbitMQConsumer
 from .publisher import EventPublisher
 from motor.motor_asyncio import AsyncIOMotorDatabase
 import logging
-
+from .routes import router
 # 로깅 설정
 logging.basicConfig(level=logging.INFO)
 
@@ -74,3 +74,5 @@ async def shutdown_event():
     if hasattr(app.state, 'publisher'):
         await app.state.publisher.close()
     logging.info("Application shutdown completed")
+    
+app.include_router(router, prefix="/structure")   

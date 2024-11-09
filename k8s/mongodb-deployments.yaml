@@ -1,0 +1,151 @@
+# Facility Service MongoDB
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mongodb-facility
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mongodb-facility
+  template:
+    metadata:
+      labels:
+        app: mongodb-facility
+    spec:
+      containers:
+      - name: mongodb
+        image: mongo:latest
+        ports:
+        - containerPort: 27017
+        env:
+        - name: MONGO_INITDB_ROOT_USERNAME
+          value: root
+        - name: MONGO_INITDB_ROOT_PASSWORD
+          value: example
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongodb-facility
+spec:
+  selector:
+    app: mongodb-facility
+  ports:
+    - protocol: TCP
+      port: 27017
+      targetPort: 27017
+---
+# Park Service MongoDB
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mongodb-park
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mongodb-park
+  template:
+    metadata:
+      labels:
+        app: mongodb-park
+    spec:
+      containers:
+      - name: mongodb
+        image: mongo:latest
+        ports:
+        - containerPort: 27017
+        env:
+        - name: MONGO_INITDB_ROOT_USERNAME
+          value: root
+        - name: MONGO_INITDB_ROOT_PASSWORD
+          value: example
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongodb-park
+spec:
+  selector:
+    app: mongodb-park
+  ports:
+    - protocol: TCP
+      port: 27017
+      targetPort: 27017
+---
+# Structure Manager MongoDB
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mongodb-structure
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mongodb-structure
+  template:
+    metadata:
+      labels:
+        app: mongodb-structure
+    spec:
+      containers:
+      - name: mongodb
+        image: mongo:latest
+        ports:
+        - containerPort: 27017
+        env:
+        - name: MONGO_INITDB_ROOT_USERNAME
+          value: root
+        - name: MONGO_INITDB_ROOT_PASSWORD
+          value: example
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongodb-structure
+spec:
+  selector:
+    app: mongodb-structure
+  ports:
+    - protocol: TCP
+      port: 27017
+      targetPort: 27017
+---
+# Ticket Service MongoDB
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mongodb-ticket
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mongodb-ticket
+  template:
+    metadata:
+      labels:
+        app: mongodb-ticket
+    spec:
+      containers:
+      - name: mongodb
+        image: mongo:latest
+        ports:
+        - containerPort: 27017
+        env:
+        - name: MONGO_INITDB_ROOT_USERNAME
+          value: root
+        - name: MONGO_INITDB_ROOT_PASSWORD
+          value: example
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongodb-ticket
+spec:
+  selector:
+    app: mongodb-ticket
+  ports:
+    - protocol: TCP
+      port: 27017
+      targetPort: 27017 

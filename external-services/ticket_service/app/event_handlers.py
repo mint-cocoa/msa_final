@@ -10,6 +10,23 @@ class EventHandler:
         self.db = db
         self.pending = {}  # correlation_id에 따른 응답 저장
         self.lock = asyncio.Lock()
+        self.latest_response = None  # 가장 최근 응답 저장
+
+    async def set_response(self, response: Dict[str, Any]) -> None:
+        """응답을 설정합니다."""
+        async with self.lock:
+            self.latest_response = response
+
+    async def wait_for_response(self, timeout: int = 30) -> Dict[str, Any]:
+        """응답을 기다립니다."""
+        start_time = asyncio.get_event_loop().time()
+        while asyncio.get_event_loop().time() - start_time < timeout:
+            if self.latest_response:
+                response = self.latest_response
+                self.latest_response = None
+                return response
+            await asyncio.sleep(0.1)
+        raise TimeoutError("Response timeout")
 
     async def handle_validate_response(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -139,30 +156,3 @@ class EventHandler:
             "data": data
         }
 
-    async def wait_for_response(self, correlation_id: str, timeout: int = 30) -> Dict[str, Any]:
-        """
-        특정 correlation_id에 대한 응답을 기다립니다.
-        """
-        async with self.lock:
-            if correlation_id not in self.pending:
-                self.pending[correlation_id] = asyncio.get_event_loop().create_future()
-
-        try:
-            response = await asyncio.wait_for(self.pending[correlation_id], timeout=timeout)
-            return response
-        except asyncio.TimeoutError:
-            logging.error(f"Response timeout for correlation_id: {correlation_id}")
-            raise TimeoutError("Response timeout")
-        finally:
-            async with self.lock:
-                self.pending.pop(correlation_id, None)
-
-    async def set_response(self, correlation_id: str, response: Dict[str, Any]):
-        """
-        특정 correlation_id에 대한 응답을 설정합니다.
-        """
-        async with self.lock:
-            if correlation_id in self.pending:
-                future = self.pending[correlation_id]
-                if not future.done():
-                    future.set_result(response)

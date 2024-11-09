@@ -19,7 +19,7 @@ spec:
         - containerPort: 8000
         env:
         - name: MONGODB_URI
-          value: "mongodb://root:example@mongodb:27017/tickets?authSource=admin"
+          value: "mongodb://root:example@mongodb-ticket:27017/tickets?authSource=admin"
         - name: DATABASE_NAME
           value: "tickets"
         - name: RABBITMQ_URL

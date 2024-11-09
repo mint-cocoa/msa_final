@@ -1,9 +1,11 @@
 # park_service/app/routes.py
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request, Depends
 from .models import ParkModel
+from .database import get_db
 import logging
 import asyncio
 from typing import Dict, Any
+from motor.motor_asyncio import AsyncIOMotorDatabase
 
 router = APIRouter()
 
@@ -90,3 +92,16 @@ async def delete_park_endpoint(park_id: str, request: Request):
     except Exception as e:
         logging.error(f"Failed to delete park: {e}")
         raise HTTPException(status_code=500, detail="Failed to delete park")
+
+@router.get("/parks/ids")
+async def get_park_ids_endpoint(db: AsyncIOMotorDatabase = Depends(get_db)):
+    try:
+        # Get all park IDs from database
+        cursor = db.parks.find({}, {"_id": 1})
+        park_ids = [str(doc["_id"]) async for doc in cursor]
+        
+        return {"park_ids": park_ids}
+            
+    except Exception as e:
+        logging.error(f"Failed to get park IDs: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get park IDs")

@@ -112,8 +112,8 @@ services:
       context: ./external-services/park_service
       dockerfile: Dockerfile
     environment:
-      MONGODB_URI: "mongodb://root:example@mongodb:27017/external?authSource=admin"
-      DATABASE_NAME: "external"
+      MONGODB_URI: "mongodb://root:example@mongodb:27017/structure?authSource=admin"
+      DATABASE_NAME: "structure"
       RABBITMQ_URL: "amqp://guest:guest@rabbitmq:5672/"
     depends_on:
       mongodb:

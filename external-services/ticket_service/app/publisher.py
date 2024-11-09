@@ -31,9 +31,9 @@ class EventPublisher:
          
     async def close(self) -> None:
         if self._connected:
-            try:
+            try:    
                 await self.client.close()
                 self._connected = False
             except Exception as e:
                 logger.error(f"RabbitMQ 연결 종료 실패: {str(e)}")
-                raise HTTPException(status_code=500, detail="RabbitMQ 연결 종료 실패")
+                raise HTTPException(status_code=500, detail="RabbitMQ 연결 종료 실패")  

@@ -44,35 +44,21 @@ class RabbitMQConsumer:
                 data = json.loads(message.body.decode())
                 routing_key = message.routing_key
                 
-                # structure_manager로부터 받은 응답 처리
-                result = await self.event_handler.handle_response(routing_key, data)
+                # EventMapper를 통해 응답 처리
+                from .event_mapping import EventMapper
+                event_mapper = EventMapper(self.event_handler)
+                result = await event_mapper.handle_ticket_response(routing_key, data)
                 
-                # 응답이 필요한 경우 처리
-                if message.reply_to:
-                    await self.exchange.publish(
-                        aio_pika.Message(
-                            body=json.dumps(result).encode(),
-                            correlation_id=message.correlation_id,
-                            content_type="application/json"
-                        ),
-                        routing_key=message.reply_to
-                    )
+                # 응답 설정
+                await self.event_handler.set_response(result)
                 
                 logging.info(f"Successfully processed response with routing key: {routing_key}")
                 
             except Exception as e:
                 logging.error(f"Error processing response: {e}")
-                if message.reply_to:
-                    error_response = {"error": str(e)}
-                    await self.exchange.publish(
-                        aio_pika.Message(
-                            body=json.dumps(error_response).encode(),
-                            correlation_id=message.correlation_id,
-                            content_type="application/json"
-                        ),
-                        routing_key=message.reply_to
-                    )
-                    
+                error_response = {"error": str(e)}
+                await self.event_handler.set_response(error_response)
+
     async def close(self):
         if self.connection:
             await self.connection.close()

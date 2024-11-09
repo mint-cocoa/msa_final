@@ -31,3 +31,8 @@ async def get_park_facilities(park_id: str, request: Request):
     except Exception as e:
         logging.error(f"Failed to get park facilities: {e}")
         raise HTTPException(status_code=500, detail=str(e)) 
+    
+@router.get("/health")
+async def health():
+    return {"status": "ok"}
+    

@@ -57,3 +57,11 @@ spec:
             name: redis-service
             port: 
               number: 8000
+      - path: /structure
+        pathType: Prefix
+        backend:
+          service:
+            name: structure-manager
+            port: 
+              number: 8000
+  
