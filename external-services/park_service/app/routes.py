@@ -105,3 +105,7 @@ async def get_park_ids_endpoint(db: AsyncIOMotorDatabase = Depends(get_db)):
     except Exception as e:
         logging.error(f"Failed to get park IDs: {e}")
         raise HTTPException(status_code=500, detail="Failed to get park IDs")
+    
+@router.get("/health")
+async def health():
+    return {"status": "ok"}

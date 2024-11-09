@@ -64,4 +64,11 @@ spec:
             name: structure-manager
             port: 
               number: 8000
+      - path: /mongo-express
+        pathType: Prefix
+        backend:
+          service:
+            name: mongo-express
+            port: 
+              number: 8081
   

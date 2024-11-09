@@ -1,9 +1,10 @@
 version: '3.8'
 
 services:
-  mongodb:
+  # Facility Service MongoDB
+  mongodb-facility:
     image: mongo:latest
-    container_name: mongodb
+    container_name: mongodb-facility
     restart: always
     environment:
       MONGO_INITDB_ROOT_USERNAME: root
@@ -11,7 +12,52 @@ services:
     ports:
       - "27017:27017"
     volumes:
-      - mongodb_data:/data/db
+      - mongodb_facility_data:/data/db
+    networks:
+      - msa_network
+
+  # Park Service MongoDB
+  mongodb-park:
+    image: mongo:latest
+    container_name: mongodb-park
+    restart: always
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: example
+    ports:
+      - "27018:27017"
+    volumes:
+      - mongodb_park_data:/data/db
+    networks:
+      - msa_network
+
+  # Structure Manager MongoDB
+  mongodb-structure:
+    image: mongo:latest
+    container_name: mongodb-structure
+    restart: always
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: example
+    ports:
+      - "27019:27017"
+    volumes:
+      - mongodb_structure_data:/data/db
+    networks:
+      - msa_network
+
+  # Ticket Service MongoDB
+  mongodb-ticket:
+    image: mongo:latest
+    container_name: mongodb-ticket
+    restart: always
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: example
+    ports:
+      - "27020:27017"
+    volumes:
+      - mongodb_ticket_data:/data/db
     networks:
       - msa_network
 
@@ -23,37 +69,15 @@ services:
     networks:
       - msa_network
 
-  user_service:
-    build: 
-      context: ./user_service
-      dockerfile: Dockerfile
-    container_name: user_service
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rabbitmq
     ports:
-      - "8001:8000"
+      - "5672:5672"
+      - "15672:15672"
     environment:
-      - MONGODB_URI=mongodb://root:example@mongodb:27017/users?authSource=admin
-      - DATABASE_NAME=users
-      - REDIS_URL=redis://redis:6379
-    depends_on:
-      - mongodb
-      - redis
-    networks:
-      - msa_network
-
-  park_service:
-    build: 
-      context: ./park_service
-      dockerfile: Dockerfile
-    container_name: park_service
-    ports:
-      - "8002:8000"
-    environment:
-      - MONGODB_URI=mongodb://root:example@mongodb:27017/parks?authSource=admin
-      - DATABASE_NAME=parks
-      - REDIS_URL=redis://redis:6379
-    depends_on:
-      - mongodb
-      - redis
+      - RABBITMQ_DEFAULT_USER=guest
+      - RABBITMQ_DEFAULT_PASS=guest
     networks:
       - msa_network
 
@@ -65,12 +89,29 @@ services:
     ports:
       - "8003:8000"
     environment:
-      - MONGODB_URI=mongodb://root:example@mongodb:27017/facilities?authSource=admin
+      - MONGODB_URI=mongodb://root:example@mongodb-facility:27017/facilities?authSource=admin
       - DATABASE_NAME=facilities
-      - REDIS_URL=redis://redis:6379
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
     depends_on:
-      - mongodb
-      - redis
+      - mongodb-facility
+      - rabbitmq
+    networks:
+      - msa_network
+
+  park_service:
+    build: 
+      context: ./park_service
+      dockerfile: Dockerfile
+    container_name: park_service
+    ports:
+      - "8002:8000"
+    environment:
+      - MONGODB_URI=mongodb://root:example@mongodb-park:27017/parks?authSource=admin
+      - DATABASE_NAME=parks
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
+    depends_on:
+      - mongodb-park
+      - rabbitmq
     networks:
       - msa_network
 
@@ -82,12 +123,12 @@ services:
     ports:
       - "8004:8000"
     environment:
-      - MONGODB_URI=mongodb://root:example@mongodb:27017/tickets?authSource=admin
+      - MONGODB_URI=mongodb://root:example@mongodb-ticket:27017/tickets?authSource=admin
       - DATABASE_NAME=tickets
-      - REDIS_URL=redis://redis:6379
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
     depends_on:
-      - mongodb
-      - redis
+      - mongodb-ticket
+      - rabbitmq
     networks:
       - msa_network
 
@@ -99,12 +140,12 @@ services:
     ports:
       - "8005:8000"
     environment:
-      - MONGODB_URI= 
+      - MONGODB_URI=mongodb://root:example@mongodb-structure:27017/structure?authSource=admin
       - DATABASE_NAME=structure
-      - REDIS_URL=redis://redis:6379
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
     depends_on:
-      - mongodb
-      - redis
+      - mongodb-structure
+      - rabbitmq
     networks:
       - msa_network
 
@@ -113,4 +154,7 @@ networks:
     driver: bridge
 
 volumes:
-  mongodb_data:
+  mongodb_facility_data:
+  mongodb_park_data:
+  mongodb_structure_data:
+  mongodb_ticket_data:
