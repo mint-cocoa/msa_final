@@ -1,11 +1,11 @@
 from fastapi import FastAPI
-from .database import Database
+from .database import Database, get_db
 from .consumer import RabbitMQConsumer
 from .publisher import EventPublisher
 from motor.motor_asyncio import AsyncIOMotorDatabase
 import logging
 from .routes import router
-# 로깅 설정
+
 logging.basicConfig(level=logging.INFO)
 
 app = FastAPI(
@@ -15,44 +15,77 @@ app = FastAPI(
     root_path="/structure"
 )
 
-async def init_collections(db: AsyncIOMotorDatabase):
+async def init_structure_collections(db: AsyncIOMotorDatabase):
     try:
-        # 현재 존재하는 컬렉션 목록 조회
         collections = await db.list_collection_names()
         
-        # nodes 컬렉션 초기화
         if "nodes" not in collections:
             await db.create_collection("nodes")
             await db.nodes.create_index("reference_id", unique=True)
             await db.nodes.create_index("type")
             logging.info("Nodes collection initialized successfully")
+            
+    except Exception as e:
+        logging.error(f"Failed to initialize structure collections: {e}")
+        raise
 
-        # parks 컬렉션 초기화
+async def init_park_collections(db: AsyncIOMotorDatabase):
+    try:
+        collections = await db.list_collection_names()
+        
         if "parks" not in collections:
             await db.create_collection("parks")
             await db.parks.create_index("name", unique=True)
             logging.info("Parks collection initialized successfully")
+            
+    except Exception as e:
+        logging.error(f"Failed to initialize park collections: {e}")
+        raise
 
-        # facilities 컬렉션 초기화
+async def init_facility_collections(db: AsyncIOMotorDatabase):
+    try:
+        collections = await db.list_collection_names()
+        
         if "facilities" not in collections:
             await db.create_collection("facilities")
             await db.facilities.create_index("park_id")
             await db.facilities.create_index([("name", 1), ("park_id", 1)], unique=True)
             logging.info("Facilities collection initialized successfully")
-
+            
     except Exception as e:
-        logging.error(f"Failed to initialize collections: {e}")
+        logging.error(f"Failed to initialize facility collections: {e}")
+        raise
+
+async def init_ticket_collections(db: AsyncIOMotorDatabase):
+    try:
+        collections = await db.list_collection_names()
+        
+        if "tickets" not in collections:
+            await db.create_collection("tickets")
+            await db.tickets.create_index("park_id")
+            await db.tickets.create_index("user_id")
+            logging.info("Tickets collection initialized successfully")
+            
+    except Exception as e:
+        logging.error(f"Failed to initialize ticket collections: {e}")
         raise
 
 @app.on_event("startup")
 async def startup_event():
     try:
-        # 데이터베이스 연결 설정
+        # 데이터베이스 연결 및 초기화
         await Database.connect_db()
-        db = Database.get_database()
         
-        # 컬렉션 초기화
-        await init_collections(db)
+        # 각 서비스별 DB 초기화
+        structure_db = Database.get_database('structure')
+        park_db = Database.get_database('park')
+        facility_db = Database.get_database('facility')
+        ticket_db = Database.get_database('ticket')
+        
+        await init_structure_collections(structure_db)
+        await init_park_collections(park_db)
+        await init_facility_collections(facility_db)
+        await init_ticket_collections(ticket_db)
         
         # RabbitMQ Consumer 설정
         app.state.consumer = RabbitMQConsumer()
@@ -76,4 +109,4 @@ async def shutdown_event():
         await app.state.publisher.close()
     logging.info("Application shutdown completed")
     
-app.include_router(router, prefix="/api")   
+app.include_router(router, prefix="/api")

@@ -1,36 +1,35 @@
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request, Depends
 from motor.motor_asyncio import AsyncIOMotorDatabase
-from datetime import datetime
-from bson import ObjectId
 import logging
 from .database import get_db
 
 router = APIRouter()
 
-@router.get("/parks/{park_id}/facilities")
-async def get_park_facilities(park_id: str, request: Request):
+@router.get("/structure/all")
+async def get_all_structure(db: AsyncIOMotorDatabase = Depends(get_db)):
     try:
-        db = await get_db()
+        # nodes 컬렉션에서 모든 구조 정보 조회
+        nodes = await db.nodes.find({}).to_list(None)
         
-        # 공원 노드에서 시설물 ID 목록 조회
-        park_node = await db.nodes.find_one({
-            "type": "park",
-            "reference_id": ObjectId(park_id)
-        })
-        if not park_node:
-            raise HTTPException(status_code=404, detail="Park not found")
-            
-        facilities = []
-        for facility_id in park_node.get("facilities", []):
-            facility = await db.facilities.find_one({"_id": facility_id})
-            if facility:
-                facility["_id"] = str(facility["_id"])
-                facilities.append(facility)
-                
-        return facilities
+        # ObjectId를 문자열로 변환
+        for node in nodes:
+            node['_id'] = str(node['_id'])
+            if 'reference_id' in node:
+                node['reference_id'] = str(node['reference_id'])
+            if 'facilities' in node:
+                node['facilities'] = [str(f) for f in node['facilities']]
+        
+        return {
+            "status": "success",
+            "data": nodes
+        }
+        
     except Exception as e:
-        logging.error(f"Failed to get park facilities: {e}")
-        raise HTTPException(status_code=500, detail=str(e)) 
+        logging.error(f"Failed to get structure: {e}")
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Failed to retrieve structure: {str(e)}"
+        )
     
 @router.get("/health")
 async def health():

@@ -1,7 +1,7 @@
 version: '3.8'
 
 services:
-  mongodb:
+  mongodb-facility:
     image: mongo:latest
     environment:
       MONGO_INITDB_ROOT_USERNAME: root
@@ -9,7 +9,58 @@ services:
     ports:
       - "27017:27017"
     volumes:
-      - mongodb_data:/data/db
+      - mongodb_facility_data:/data/db
+    networks:
+      - theme_park_network
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  mongodb-park:
+    image: mongo:latest
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: example
+    ports:
+      - "27018:27017"
+    volumes:
+      - mongodb_park_data:/data/db
+    networks:
+      - theme_park_network
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  mongodb-structure:
+    image: mongo:latest
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: example
+    ports:
+      - "27019:27017"
+    volumes:
+      - mongodb_structure_data:/data/db
+    networks:
+      - theme_park_network
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  mongodb-ticket:
+    image: mongo:latest
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: example
+    ports:
+      - "27020:27017"
+    volumes:
+      - mongodb_ticket_data:/data/db
     networks:
       - theme_park_network
     healthcheck:
@@ -24,8 +75,8 @@ services:
       RABBITMQ_DEFAULT_USER: guest
       RABBITMQ_DEFAULT_PASS: guest
     ports:
-      - "5672:5672"   # AMQP protocol port
-      - "15672:15672" # Management UI
+      - "5672:5672"
+      - "15672:15672"
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
     networks:
@@ -60,23 +111,94 @@ services:
     depends_on:
       redis:
         condition: service_healthy
-      facility-service:
-        condition: service_started
     ports:
       - "8004:8000"
     networks:
       - theme_park_network
-    restart: on-failure
+
+  structure-manager:
+    build:
+      context: ./external-services/structure_manager
+      dockerfile: Dockerfile
+    environment:
+      MONGODB_URI: "mongodb://root:example@mongodb-structure:27017/structure?authSource=admin"
+      DATABASE_NAME: "structure"
+      RABBITMQ_URL: "amqp://guest:guest@rabbitmq:5672/"
+    depends_on:
+      mongodb-structure:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    ports:
+      - "8002:8000"
+    networks:
+      - theme_park_network
+
+  park-service:
+    build:
+      context: ./external-services/park_service
+      dockerfile: Dockerfile
+    environment:
+      MONGODB_URI: "mongodb://root:example@mongodb-park:27017/parks?authSource=admin"
+      DATABASE_NAME: "parks"
+      RABBITMQ_URL: "amqp://guest:guest@rabbitmq:5672/"
+    depends_on:
+      mongodb-park:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    networks:
+      - theme_park_network
+
+  facility-service:
+    build:
+      context: ./external-services/facility_service
+      dockerfile: Dockerfile
+    environment:
+      MONGODB_URI: "mongodb://root:example@mongodb-facility:27017/facilities?authSource=admin"
+      DATABASE_NAME: "facilities"
+      RABBITMQ_URL: "amqp://guest:guest@rabbitmq:5672/"
+    depends_on:
+      mongodb-facility:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    ports:
+      - "8001:8000"
+    networks:
+      - theme_park_network
+
+  ticket-service:
+    build:
+      context: ./external-services/ticket_service
+      dockerfile: Dockerfile
+    environment:
+      MONGODB_URI: "mongodb://root:example@mongodb-ticket:27017/tickets?authSource=admin"
+      DATABASE_NAME: "tickets"
+      RABBITMQ_URL: "amqp://guest:guest@rabbitmq:5672/"
+    depends_on:
+      mongodb-ticket:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    ports:
+      - "8003:8000"
+    networks:
+      - theme_park_network
 
   ride-reservation-service:
     build:
       context: ./internal_services/ride_reservation_service
       dockerfile: Dockerfile
     environment:
+      MONGODB_URI: "mongodb://root:example@mongodb-structure:27017/reservations?authSource=admin"
+      DATABASE_NAME: "reservations"
       REDIS_URL: "redis://redis:6379"
       REDIS_SERVICE_URL: "http://redis-service:8000"
       SECRET_KEY: "your-secret-key"
-      TEST_MODE: "true"  # 개발/테스트 환경에서만 true로 설정
+      TEST_MODE: "true"
     depends_on:
       redis:
         condition: service_healthy
@@ -86,93 +208,15 @@ services:
       - "8005:8000"
     networks:
       - theme_park_network
-    restart: on-failure
-
-  structure-manager:
-    build:
-      context: ./external-services/structure_manager
-      dockerfile: Dockerfile
-    environment:
-      MONGODB_URI: "mongodb://root:example@mongodb:27017/structure?authSource=admin"
-      DATABASE_NAME: "structure"
-      RABBITMQ_URL: "amqp://guest:guest@rabbitmq:5672/"
-    depends_on:
-      mongodb:
-        condition: service_healthy
-      rabbitmq:
-        condition: service_healthy
-    ports:
-      - "8002:8000"
-    networks:
-      - theme_park_network
-    restart: on-failure
-
-  park-service:
-    build:
-      context: ./external-services/park_service
-      dockerfile: Dockerfile
-    environment:
-      MONGODB_URI: "mongodb://root:example@mongodb:27017/structure?authSource=admin"
-      DATABASE_NAME: "structure"
-      RABBITMQ_URL: "amqp://guest:guest@rabbitmq:5672/"
-    depends_on:
-      mongodb:
-        condition: service_healthy
-      rabbitmq:
-        condition: service_healthy
-    ports:
-      - "8000:8000"
-    networks:
-      - theme_park_network
-    restart: on-failure
-
-  facility-service:
-    build:
-      context: ./external-services/facility_service
-      dockerfile: Dockerfile
-    environment:
-      MONGODB_URI: "mongodb://root:example@mongodb:27017/structure?authSource=admin"
-      DATABASE_NAME: "structure"
-      RABBITMQ_URL: "amqp://guest:guest@rabbitmq:5672/"
-    depends_on:
-      mongodb:
-        condition: service_healthy
-      rabbitmq:
-        condition: service_healthy
-      park-service:
-        condition: service_started
-    ports:
-      - "8001:8000"
-    networks:
-      - theme_park_network
-    restart: on-failure
-
-  ticket-service:
-    build:
-      context: ./external-services/ticket_service
-      dockerfile: Dockerfile
-    environment:
-      MONGODB_URI: "mongodb://root:example@mongodb:27017/structure?authSource=admin"
-      DATABASE_NAME: "structure"
-      RABBITMQ_URL: "amqp://guest:guest@rabbitmq:5672/"
-    depends_on:
-      mongodb:
-        condition: service_healthy
-      rabbitmq:
-        condition: service_healthy
-      structure-manager:
-        condition: service_started
-    ports:
-      - "8003:8000"
-    networks:
-      - theme_park_network
-    restart: on-failure
 
 networks:
   theme_park_network:
     driver: bridge
 
 volumes:
-  mongodb_data:
+  mongodb_facility_data:
+  mongodb_park_data:
+  mongodb_structure_data:
+  mongodb_ticket_data:
   rabbitmq_data:
   redis_data:

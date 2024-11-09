@@ -9,17 +9,10 @@ class EventMapper:
             # Park 요청 핸들러
             "park.create": self.event_handler.handle_park_create,
             "park.update": self.event_handler.handle_park_update,
-            "park.delete": self.event_handler.handle_park_delete,
-            "park.get": self.event_handler.handle_park_get,
-            "park.get_all": self.event_handler.handle_park_get_all,
-            
+
             # Facility 요청 핸들러
             "facility.create": self.event_handler.handle_facility_create,
-            "facility.update": self.event_handler.handle_facility_update,
-            "facility.delete": self.event_handler.handle_facility_delete,
-            "facility.get": self.event_handler.handle_facility_get,
-            "facility.get_all": self.event_handler.handle_facility_get_all,
-            
+        
             # Ticket 요청 핸들러
             "ticket.validate": self.event_handler.handle_ticket_validation
         }
