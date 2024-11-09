@@ -26,13 +26,13 @@ spec:
           value: "amqp://guest:guest@rabbitmq:5672/"
         readinessProbe:
           httpGet:
-            path: /structure/health
+            path: /structure/api/health
             port: 8000
           initialDelaySeconds: 10
           periodSeconds: 5
         livenessProbe:
           httpGet:
-            path: /structure/health
+            path: /structure/api/health
             port: 8000
           initialDelaySeconds: 15
           periodSeconds: 10

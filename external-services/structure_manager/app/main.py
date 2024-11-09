@@ -11,7 +11,8 @@ logging.basicConfig(level=logging.INFO)
 app = FastAPI(
     title="Structure Manager",
     description="Service for managing park structure and access control",
-    version="1.0.0"
+    version="1.0.0",
+    root_path="/structure"
 )
 
 async def init_collections(db: AsyncIOMotorDatabase):
@@ -75,4 +76,4 @@ async def shutdown_event():
         await app.state.publisher.close()
     logging.info("Application shutdown completed")
     
-app.include_router(router, prefix="/structure")   
+app.include_router(router, prefix="/api")   

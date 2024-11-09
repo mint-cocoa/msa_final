@@ -96,16 +96,21 @@ async def delete_park_endpoint(park_id: str, request: Request):
 @router.get("/parks/ids")
 async def get_park_ids_endpoint(db: AsyncIOMotorDatabase = Depends(get_db)):
     try:
+        logging.info("Attempting to fetch park IDs from database")
+        
         # Get all park IDs from database
         cursor = db.parks.find({}, {"_id": 1})
         park_ids = [str(doc["_id"]) async for doc in cursor]
         
+        logging.info(f"Successfully retrieved {len(park_ids)} park IDs")
         return {"park_ids": park_ids}
             
     except Exception as e:
         logging.error(f"Failed to get park IDs: {e}")
+        logging.exception("Detailed error trace:")
         raise HTTPException(status_code=500, detail="Failed to get park IDs")
     
 @router.get("/health")
 async def health():
+    logging.info("Health check endpoint called")
     return {"status": "ok"}

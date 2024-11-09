@@ -3,6 +3,14 @@ from fastapi import FastAPI
 from .routes import router
 from .publisher import EventPublisher
 from .consumer import RabbitMQConsumer
+import logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler()
+    ]
+)
 
 app = FastAPI(
     title="Park Service",
