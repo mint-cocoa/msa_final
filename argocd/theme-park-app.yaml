@@ -1,4 +1,4 @@
-apiVersion: argoproj.io/v2
+apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
   name: theme-park-services
@@ -8,7 +8,10 @@ spec:
   source:
     repoURL: 'https://github.com/mint-cocoa/msa_final.git'
     targetRevision: HEAD
-    path: 'k8s'
+    path: '.'
+    kustomize:
+      commonLabels:
+        app: theme-park
   destination:
     server: 'https://kubernetes.default.svc'
     namespace: default
@@ -16,4 +19,6 @@ spec:
     automated:
       prune: true
       selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
 
