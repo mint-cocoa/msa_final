@@ -16,10 +16,9 @@ class EventHandler:
             self.dbs = {
                 'structure': self.structure_db,
                 'park': await get_db('park'),
-                'facility': await get_db('facility'),
-                'ticket': await get_db('ticket')
+                'facility': await get_db('facility')
             }
-            logging.info("Successfully initialized all database connections")
+            logging.info("All database connections initialized")
         except Exception as e:
             logging.error(f"Failed to initialize databases: {e}")
             raise
@@ -28,6 +27,10 @@ class EventHandler:
         try:
             park_data = data.get("data", {})
             
+            # 데이터베이스 존재 여부 확인 수정
+            if 'park' not in self.dbs or self.dbs['park'] is None:
+                raise Exception("Park database not initialized")
+                
             # parks DB에 저장
             result = await self.dbs['park'].parks.insert_one(park_data)
             park_id = result.inserted_id
@@ -35,7 +38,7 @@ class EventHandler:
             # structure DB의 nodes 컬렉션에 저장
             node_data = {
                 "type": "park",
-                "reference_id": ObjectId(park_id),
+                "reference_id": park_id,
                 "name": park_data.get("name"),
                 "facilities": [],
                 "created_at": datetime.utcnow(),
@@ -43,9 +46,10 @@ class EventHandler:
             }
             await self.dbs['structure'].nodes.insert_one(node_data)
             
+            logging.info(f"Successfully created park with ID: {park_id}")
             return {"status": "success", "_id": str(park_id)}
         except Exception as e:
-            logging.error(f"Error creating park: {e}")
+            logging.error(f"Error creating park: {str(e)}")
             raise
 
     async def handle_park_update(self, data: Dict[str, Any]) -> Dict[str, Any]:

@@ -4,6 +4,10 @@ from .publisher import EventPublisher
 from .consumer import RabbitMQConsumer
 import logging
 import os
+
+
+logging.basicConfig(level=logging.INFO)
+
 app = FastAPI(
     title="Ticket Service",
     description="Service for managing tickets",

@@ -9,6 +9,7 @@ class EventHandler:
     async def handle_create_response(self, data: Dict[str, Any]) -> Dict[str, Any]:
         try:
             self.latest_response = data
+            logging.info(f"Received create response: {data}")
             park_id = data.get("_id")
             if park_id:
                 self.parks[park_id] = data

@@ -25,7 +25,7 @@ class Database:
             "db_name": "tickets"
         }
     }
-
+ 
     @classmethod
     async def connect_db(cls):
         try:

@@ -1,8 +1,12 @@
 from typing import Optional, Dict, Any
-from .rabbitmq import RabbitMQClient
 from fastapi import HTTPException
 import os
 import logging
+import aio_pika
+import json
+from .rabbitmq import RabbitMQClient
+import asyncio
+import uuid
 
 logger = logging.getLogger(__name__)
 
@@ -10,39 +14,87 @@ class EventPublisher:
     def __init__(self, rabbitmq_url: Optional[str] = None):
         self.rabbitmq_url = rabbitmq_url or os.getenv("RABBITMQ_URL", "amqp://guest:guest@rabbitmq:5672/")
         self.client = RabbitMQClient(self.rabbitmq_url)
+        self._response = None
+        self._response_event = None
         self._connected = False
+        logger.info(f"EventPublisher initialized with URL: {self.rabbitmq_url}")
 
     async def connect(self) -> None:
         try:
+            logger.info("Attempting to connect to RabbitMQ...")
             await self.client.connect()
             self._connected = True
+            logger.info("Successfully connected to RabbitMQ")
         except Exception as e:
-            logger.error(f"RabbitMQ 연결 실패: {str(e)}")
+            logger.error(f"RabbitMQ 연결 실패: {str(e)}", exc_info=True)
             raise HTTPException(status_code=500, detail="RabbitMQ 연결 실패")
 
-    async def publish_structure_update(self, data: Dict[str, Any]) -> None:
-        if not self._connected:
-            await self.connect()
+    async def handle_response(self, message):
+        """응답 메시지 처리"""
         try:
-            await self.client.publish('park.updates', data)
+            self._response = json.loads(message.decode())
+            if self._response_event:
+                self._response_event.set()
+            logger.info(f"응답 메시지 처리 완료: {self._response}")
         except Exception as e:
-            logger.error(f"구조 업데이트 발행 실패: {str(e)}")
-            raise HTTPException(status_code=500, detail="구조 업데이트 발행 실패")
+            logger.error(f"응답 처리 중 오류 발생: {str(e)}")
 
-    async def create_park(self, data: Dict[str, Any]) -> None:
-        if not self._connected:
-            await self.connect()
+    async def create_park(self, data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """공원 생성 메시지 발행 및 응답 대기"""
         try:
-            await self.client.publish('park.create', data)
+            if not self._connected:
+                await self.connect()
+
+            # 응답 대기를 위한 이벤트 설정
+            self._response = None
+            self._response_event = asyncio.Event()
+            
+            # 응답 큐 설정
+            response_queue = await self.client.setup_response_queue(self.handle_response)
+            
+            # correlation_id 생성
+            correlation_id = str(uuid.uuid4())
+            
+            # 메시지 발행
+            await self.client.publish(
+                routing_key='park.request.create',
+                message=data,
+                correlation_id=correlation_id,
+                reply_to="park.response.create"
+            )
+            logger.info("Park creation message published successfully")
+            
         except Exception as e:
-            logger.error(f"공원 생성 메시지 발행 실패: {str(e)}")
+            logger.error(f"공원 생성 메시지 발행 실패: {str(e)}", exc_info=True)
             raise HTTPException(status_code=500, detail=f"공원 생성 실패: {str(e)}")
+        finally:
+            self._response_event = None
 
-    async def close(self) -> None:
-        if self._connected:
-            try:
-                await self.client.close()
-                self._connected = False
-            except Exception as e:
-                logger.error(f"RabbitMQ 연결 종료 실패: {str(e)}")
-                raise HTTPException(status_code=500, detail="RabbitMQ 연결 종료 실패")
+    async def update_park(self, data: Dict[str, Any]) -> None:
+        if not self._connected:
+            await self.connect()
+        try:
+            await self.client.publish('park.request.update', data)
+            logger.info("Park update message published successfully")
+        except Exception as e:
+            logger.error(f"공원 업데이트 발행 실패: {str(e)}", exc_info=True)
+            raise HTTPException(status_code=500, detail="공원 업데이트 실패")
+
+    async def delete_park(self, data: Dict[str, Any]) -> None:
+        if not self._connected:
+            await self.connect()
+        try:
+            await self.client.publish('park.request.delete', data)
+            logger.info("Park deletion message published successfully")
+        except Exception as e:
+            logger.error(f"공원 삭제 발행 실패: {str(e)}", exc_info=True)
+            raise HTTPException(status_code=500, detail="공원 삭제 실패")
+
+    async def close(self):
+        try:
+            await self.client.close()
+            self._connected = False
+            logger.info("EventPublisher connection closed")
+        except Exception as e:
+            logger.error(f"RabbitMQ 연결 종료 실패: {str(e)}")
+            raise HTTPException(status_code=500, detail="RabbitMQ 연결 종료 실패")

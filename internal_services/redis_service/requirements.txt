@@ -4,3 +4,5 @@ redis
 aio-pika
 aioredis
 httpx
+prometheus-client
+prometheus-fastapi-instrumentator

@@ -33,9 +33,17 @@ async def create_park_endpoint(park: ParkModel, request: Request):
         
         # 응답 대기
         response = await wait_for_response(request.app.state.consumer.event_mapper.event_handler)
-        
+        logging.info(f"Response: {response}")
         if response.get("status") == "success":
-            return {"message": "Park created successfully", "data": response.get("data")}
+            return {
+                "status": "success",
+                "message": "Park created successfully",
+                "park_id": response.get("_id"),  # structure_manager에서 반환된 park의 ID
+                "data": {
+                    "name": park.name,
+                    **park.dict()
+                }
+            }
         else:
             raise HTTPException(status_code=400, detail=response.get("error", "Failed to create park"))
             

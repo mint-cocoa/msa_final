@@ -25,7 +25,7 @@ async def wait_for_response(event_handler, timeout: int = 30) -> Dict[str, Any]:
 @router.post("/tickets/validate")
 async def validate_ticket_endpoint(form: TicketValidationModel, request: Request):
     try:    
-        await request.app.state.publisher.publish_ticket_validation({
+        await request.app.state.publisher.validate_ticket({
             "action": "validate",
             "data": {
                 "user_id": form.user_id,
@@ -35,9 +35,8 @@ async def validate_ticket_endpoint(form: TicketValidationModel, request: Request
             }
         })
         
-        response = await request.app.state.consumer.event_handler.wait_for_response()
-        
-        # response를 JSON 문자열로 변환 후 base64로 인코딩
+        response = await wait_for_response(request.app.state.consumer.event_mapper.event_handler)
+        logging.info(f"Ticket validation response: {response}")
         json_response = json.dumps(response)
         encoded_response = base64.b64encode(json_response.encode('utf-8')).decode('utf-8')
         

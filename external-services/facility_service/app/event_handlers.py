@@ -4,12 +4,15 @@ from typing import Dict, Any
 class EventHandler:
     def __init__(self):
         self.facilities = {}  # 메모리에 임시 저장
+        self.latest_response = None  # 가장 최근 응답 저장
 
     async def handle_create_response(self, data: Dict[str, Any]) -> Dict[str, Any]:
         try:
+            self.latest_response = data
+            logging.info(f"Received create response: {data}")
             facility_id = data.get("_id")
             if facility_id:
-                self.facilities[facility_id] = data
+                self.facilities[facility_id] = data     
             return {"status": "success", "data": data}
         except Exception as e:
             logging.error(f"Error handling create response: {e}")

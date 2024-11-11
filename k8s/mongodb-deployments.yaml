@@ -23,6 +23,8 @@ spec:
           value: root
         - name: MONGO_INITDB_ROOT_PASSWORD
           value: example
+        - name: MONGO_INITDB_DATABASE
+          value: facilities
 ---
 apiVersion: v1
 kind: Service
@@ -61,6 +63,8 @@ spec:
           value: root
         - name: MONGO_INITDB_ROOT_PASSWORD
           value: example
+        - name: MONGO_INITDB_DATABASE
+          value: parks
 ---
 apiVersion: v1
 kind: Service
@@ -99,6 +103,8 @@ spec:
           value: root
         - name: MONGO_INITDB_ROOT_PASSWORD
           value: example
+        - name: MONGO_INITDB_DATABASE
+          value: structure
 ---
 apiVersion: v1
 kind: Service
@@ -137,6 +143,8 @@ spec:
           value: root
         - name: MONGO_INITDB_ROOT_PASSWORD
           value: example
+        - name: MONGO_INITDB_DATABASE
+          value: tickets
 ---
 apiVersion: v1
 kind: Service

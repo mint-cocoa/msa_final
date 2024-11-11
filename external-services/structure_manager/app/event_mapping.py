@@ -7,76 +7,23 @@ class EventMapper:
         self.event_handler = event_handler
         self.request_handlers = {
             # Park 요청 핸들러
-            "park.create": self.event_handler.handle_park_create,
-            "park.update": self.event_handler.handle_park_update,
-
+            "park.request.create": self.event_handler.handle_park_create,
+            
             # Facility 요청 핸들러
-            "facility.create": self.event_handler.handle_facility_create,
-        
+            "facility.request.create": self.event_handler.handle_facility_create,
+            
             # Ticket 요청 핸들러
-            "ticket.validate": self.event_handler.handle_ticket_validation
+            "ticket.request.validate": self.event_handler.handle_ticket_validation
         }
 
-    async def handle_park_request(self, data: Dict[str, Any]) -> Dict[str, Any]:
+    async def handle_request(self, routing_key: str, data: Dict[str, Any]) -> Dict[str, Any]:
         try:
-            action = data.get("action")
-            routing_key = f"park.{action}"
             handler = self.request_handlers.get(routing_key)
-            
             if handler:
-                result = await handler(data)
-                return result
+                return await handler(data)
             else:
-                logging.warning(f"No handler found for park action: {action}")
-                return {"status": "error", "message": "Unknown park action"}
+                logging.warning(f"No handler found for routing key: {routing_key}")
+                return {"status": "error", "message": f"Unknown request type: {routing_key}"}
         except Exception as e:
-            logging.error(f"Error handling park request: {e}")
-            raise
-
-    async def handle_facility_request(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        try:
-            action = data.get("action")
-            routing_key = f"facility.{action}"
-            handler = self.request_handlers.get(routing_key)
-            
-            if handler:
-                result = await handler(data)
-                return result
-            else:
-                logging.warning(f"No handler found for facility action: {action}")
-                return {"status": "error", "message": "Unknown facility action"}
-        except Exception as e:
-            logging.error(f"Error handling facility request: {e}")
-            raise
-
-    async def handle_structure_request(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        try:
-            action = data.get("action")
-            routing_key = f"structure.{action}"
-            handler = self.request_handlers.get(routing_key)
-            
-            if handler:
-                result = await handler(data)
-                return result   
-            else:
-                logging.warning(f"No handler found for structure action: {action}")
-                return {"status": "error", "message": "Unknown structure action"}
-        except Exception as e:
-            logging.error(f"Error handling structure request: {e}")
-            raise
-        
-    async def handle_ticket_request(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        try:
-            action = data.get("action")
-            routing_key = f"ticket.{action}"
-            handler = self.request_handlers.get(routing_key)    
-            
-            if handler:
-                result = await handler(data)
-                return result
-            else:
-                logging.warning(f"No handler found for ticket action: {action}")
-                return {"status": "error", "message": "Unknown ticket action"}
-        except Exception as e:
-            logging.error(f"Error handling ticket request: {e}")
-            raise   
+            logging.error(f"Error handling request: {e}")
+            raise 

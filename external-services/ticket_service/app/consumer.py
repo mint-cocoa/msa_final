@@ -1,65 +1,109 @@
-import json
-import logging
 import aio_pika
-from .event_handlers import EventHandler
-from .database import get_db
+import json
 import os
+import logging
+from .event_handlers import EventHandler
+from .event_mapping import EventMapper
+from .database import get_db
+
+logger = logging.getLogger(__name__)
 
 class RabbitMQConsumer:
-    def __init__(self, rabbitmq_url: str):
+    def __init__(self, rabbitmq_url: str = None):
         self.rabbitmq_url = rabbitmq_url or os.getenv("RABBITMQ_URL", "amqp://guest:guest@rabbitmq:5672/")
+        self.connection = None
+        self.channel = None
         self.exchange = None
-        self.event_handler = None
+        self.db = get_db()
+        self.event_handler = EventHandler(self.db)
+        self.event_mapper = EventMapper(self.event_handler)
+        logger.info(f"RabbitMQConsumer initialized with URL: {self.rabbitmq_url}")
 
     async def connect(self):
         try:
+            logger.info("Attempting to connect to RabbitMQ...")
             self.connection = await aio_pika.connect_robust(self.rabbitmq_url)
+            logger.info("RabbitMQ connection established")
+            
             self.channel = await self.connection.channel()
+            logger.info("RabbitMQ channel created")
+            
             self.exchange = await self.channel.declare_exchange(
                 "theme_park_events",
                 aio_pika.ExchangeType.TOPIC
             )
+            logger.info("Exchange 'theme_park_events' declared")
             
-            self.db = get_db()
-            self.event_handler = EventHandler(self.db)
-
-            # 티켓 응답을 위한 큐 선언 및 바인딩
+            # 응답 큐 설정
             response_queue = await self.channel.declare_queue(
                 "ticket_response_queue",
                 durable=True
             )
-            await response_queue.bind(self.exchange, routing_key="ticket.response.*")
+            logger.info("Response queue 'ticket_response_queue' declared")
+            
+            # 응답 큐 바인딩
+            await response_queue.bind(self.exchange, "ticket.response.#")
+            logger.info("Response queue bound to 'ticket.response.#'")
             
             # 메시지 소비 시작
             await response_queue.consume(self.process_message)
+            logger.info("Started consuming messages from response queue")
             
-            logging.info("Ticket Service RabbitMQ 연결 및 응답 큐 소비 시작 완료")
+            logger.info("RabbitMQ consumer initialized successfully")
+            
         except Exception as e:
-            logging.error(f"RabbitMQ 연결 실패: {e}")
+            logger.error(f"Failed to initialize RabbitMQ consumer: {e}", exc_info=True)
             raise
 
     async def process_message(self, message: aio_pika.IncomingMessage):
         async with message.process():
             try:
+                logger.info(f"Processing message with routing key: {message.routing_key}")
                 data = json.loads(message.body.decode())
-                routing_key = message.routing_key
+                logger.debug(f"Received message data: {json.dumps(data, indent=2)}")
                 
-                # EventMapper를 통해 응답 처리
-                from .event_mapping import EventMapper
-                event_mapper = EventMapper(self.event_handler)
-                result = await event_mapper.handle_ticket_response(routing_key, data)
+                # 티켓 응답 처리
+                logger.info("Handling ticket response...")
+                result = await self.event_mapper.handle_ticket_response(message.routing_key, data)
+                logger.debug(f"Response handled successfully: {json.dumps(result, indent=2)}")
                 
-                # 응답 설정
-                await self.event_handler.set_response(result)
+                # 응답이 필요한 경우 처리
+                if message.reply_to:
+                    logger.info(f"Publishing response to: {message.reply_to}")
+                    await self.exchange.publish(
+                        aio_pika.Message(
+                            body=json.dumps(result).encode(),
+                            correlation_id=message.correlation_id,
+                            content_type="application/json"
+                        ),
+                        routing_key=message.reply_to
+                    )
+                    logger.info("Response published successfully")
                 
-                logging.info(f"Successfully processed response with routing key: {routing_key}")
+                logger.info(f"Successfully processed response with routing key: {message.routing_key}")
                 
             except Exception as e:
-                logging.error(f"Error processing response: {e}")
-                error_response = {"error": str(e)}
-                await self.event_handler.set_response(error_response)
+                logger.error(f"Error processing response: {e}", exc_info=True)
+                if message.reply_to:
+                    logger.info("Sending error response...")
+                    error_response = {"error": str(e)}
+                    await self.exchange.publish(
+                        aio_pika.Message(
+                            body=json.dumps(error_response).encode(),
+                            correlation_id=message.correlation_id,
+                            content_type="application/json"
+                        ),
+                        routing_key=message.reply_to
+                    )
+                    logger.info("Error response sent")
 
     async def close(self):
-        if self.connection:
-            await self.connection.close()
+        try:
+            if self.connection:
+                logger.info("Closing RabbitMQ connection...")
+                await self.connection.close()
+                logger.info("RabbitMQ connection closed successfully")
+        except Exception as e:
+            logger.error(f"Error closing RabbitMQ connection: {e}", exc_info=True)
+            raise
             
