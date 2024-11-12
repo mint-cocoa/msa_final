@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>놀이공원 실시간 모니터링</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .rides-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 20px;
+        }
+
+        .ride-card {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+
+        .ride-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .status-badge {
+            padding: 5px 10px;
+            border-radius: 15px;
+            font-size: 0.8em;
+        }
+
+        .status-active {
+            background-color: #4CAF50;
+            color: white;
+        }
+
+        .status-inactive {
+            background-color: #f44336;
+            color: white;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 10px;
+            background-color: #e0e0e0;
+            border-radius: 5px;
+            margin: 10px 0;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background-color: #2196F3;
+            transition: width 0.3s ease;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .stat-item {
+            text-align: center;
+            padding: 10px;
+            background-color: #f8f9fa;
+            border-radius: 5px;
+        }
+
+        .stat-label {
+            font-size: 0.8em;
+            color: #666;
+        }
+
+        .stat-value {
+            font-size: 1.2em;
+            font-weight: bold;
+            color: #333;
+        }
+
+        .loading, .error {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+        }
+
+        .error {
+            color: #f44336;
+        }
+
+        .loading::after {
+            content: '...';
+            animation: dots 1.5s infinite;
+        }
+
+        @keyframes dots {
+            0%, 20% { content: '.'; }
+            40% { content: '..'; }
+            60%, 100% { content: '...'; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>놀이공원 실시간 모니터링</h1>
+        </div>
+        <div class="rides-container" id="ridesContainer">
+            <!-- 놀이기구 카드들이 여기에 동적으로 추가됩니다 -->
+        </div>
+    </div>
+
+    <script>
+        const WEBSOCKET_URL = 'wss://parkservice.mintcocoa.cc/redis/ws/ride_info';
+        const FACILITY_SERVICE_URL = 'https://parkservice.mintcocoa.cc/facilities/api/facilities/active';
+
+        class RideCard {
+            constructor(rideId) {
+                this.rideId = rideId;
+                this.element = this.createCardElement();
+                this.connect();
+            }
+
+            createCardElement() {
+                const card = document.createElement('div');
+                card.className = 'ride-card';
+                card.innerHTML = `
+                    <div class="ride-header">
+                        <h2 class="ride-name">연결 중...</h2>
+                        <span class="status-badge">대기 중</span>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" style="width: 0%"></div>
+                    </div>
+                    <div class="stats">
+                        <div class="stat-item">
+                            <div class="stat-label">대기 인원</div>
+                            <div class="stat-value waiting">-</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-label">탑승 인원</div>
+                            <div class="stat-value riding">-</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-label">최대 수용</div>
+                            <div class="stat-value capacity">-</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-label">운행 시간</div>
+                            <div class="stat-value duration">-</div>
+                        </div>
+                    </div>
+                `;
+                return card;
+            }
+
+            connect() {
+                const ws = new WebSocket(`${WEBSOCKET_URL}/${this.rideId}`);
+
+                ws.onmessage = (event) => {
+                    const data = JSON.parse(event.data);
+                    this.updateCard(data);
+                };
+
+                ws.onclose = () => {
+                    console.log(`${this.rideId} 연결 종료`);
+                    setTimeout(() => this.connect(), 5000); // 5초 후 재연결 시도
+                };
+
+                ws.onerror = (error) => {
+                    console.error(`${this.rideId} 오류:`, error);
+                };
+            }
+
+            updateCard(data) {
+                const card = this.element;
+                card.querySelector('.ride-name').textContent = data.facility_name;
+                
+                const statusBadge = card.querySelector('.status-badge');
+                statusBadge.textContent = data.status === 'active' ? '운행 중' : '운행 중지';
+                statusBadge.className = `status-badge status-${data.status}`;
+
+                const waitingPercentage = (data.current_waiting_riders / data.max_capacity) * 100;
+                card.querySelector('.progress-fill').style.width = `${waitingPercentage}%`;
+
+                card.querySelector('.waiting').textContent = data.current_waiting_riders;
+                card.querySelector('.riding').textContent = data.current_active_riders;
+                card.querySelector('.capacity').textContent = data.max_capacity;
+                card.querySelector('.duration').textContent = `${data.ride_duration}분`;
+            }
+        }
+
+        // 시설 정보를 가져오는 함수
+        async function fetchFacilities() {
+            try {
+                const response = await fetch(FACILITY_SERVICE_URL, {
+                    headers: {
+                        'accept': 'application/json'
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error('시설 정보를 가져오는데 실패했습니다');
+                }
+
+                const data = await response.json();
+                
+                if (data.status === "success" && data.data && Array.isArray(data.data.facilities)) {
+                    return data.data.facilities;
+                }
+                throw new Error('유효하지 않은 시설 데이터');
+            } catch (error) {
+                console.error('시설 데이터 로드 실패:', error);
+                return [];
+            }
+        }
+
+        // 페이지 초기화
+        async function initializePage() {
+            try {
+                const container = document.getElementById('ridesContainer');
+                container.innerHTML = '<p class="loading">시설 정보를 불러오는 중...</p>';
+
+                const facilities = await fetchFacilities();
+                
+                if (facilities.length === 0) {
+                    container.innerHTML = '<p class="error">시설 정보를 불러올 수 없습니다.</p>';
+                    return;
+                }
+
+                container.innerHTML = ''; // 로딩 메시지 제거
+                
+                facilities.forEach(facility => {
+                    const card = new RideCard(facility._id);
+                    container.appendChild(card.element);
+                    
+                    // 카드에 기본 정보 설정
+                    card.element.querySelector('.ride-name').textContent = facility.name;
+                    card.element.querySelector('.capacity').textContent = facility.max_queue_capacity;
+                    card.element.querySelector('.duration').textContent = `${facility.ride_duration}분`;
+                });
+
+                console.info(`초기화 완료: ${facilities.length}개 시설 로드됨`);
+            } catch (error) {
+                console.error('페이지 초기화 실패:', error);
+                document.getElementById('ridesContainer').innerHTML = 
+                    '<p class="error">시스템 초기화 중 오류가 발생했습니다.</p>';
+            }
+        }
+
+        // 페이지 로드 시 초기화 실행
+        document.addEventListener('DOMContentLoaded', initializePage);
+    </script>
+</body>
+</html>

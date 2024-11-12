@@ -6,12 +6,29 @@ from .routes import router
 from .redis_pubsub import start_pubsub_listener
 import asyncio
 import httpx
+from fastapi.middleware.cors import CORSMiddleware
+
 app = FastAPI(
     title="Redis Service",
     description="Service for managing redis queues",
     version="1.0.0",
     root_path="/redis"
 )
+
+origins = [
+    "http://localhost",
+    "http://localhost:8080",
+    "http://localhost:3000",
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 
 REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379")
 FACILITY_SERVICE_URL = os.getenv("FACILITY_SERVICE_URL", "http://facility-service:8000")

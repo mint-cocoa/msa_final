@@ -1,5 +1,5 @@
 fastapi
-uvicorn
+uvicorn[standard]
 redis
 aio-pika
 aioredis
