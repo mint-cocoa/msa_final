@@ -6,10 +6,10 @@ import { randomString } from 'https://jslib.k6.io/k6-utils/1.2.0/index.js';
 
 // 전역 상태 관리
 const STATE = {
+    FACILITIES: [],
     TIME_SETTINGS: {
         PARK_OPEN_HOUR: 9,
         PARK_CLOSE_HOUR: 22,
-        LOOP_MINUTES: 1,
         currentTime: new Date(),
         
         // 시간 관리 메서드들
@@ -19,12 +19,7 @@ const STATE = {
         },
         
         advance() {
-            if (!this.currentTime) {
-                this.initialize();
-            }
-            this.currentTime.setMinutes(
-                this.currentTime.getMinutes() + this.LOOP_MINUTES
-            );
+            this.currentTime.setMinutes(this.currentTime.getMinutes() + 1);
             return this.currentTime;
         },
         
@@ -32,7 +27,6 @@ const STATE = {
             return this.currentTime || this.initialize();
         }
     },
-    FACILITIES: []  // 운영 중인 시설 목록
 };
 
 // setup 함수 - 테스트 시작 전 1회 실행
