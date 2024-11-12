@@ -9,9 +9,6 @@ spec:
     repoURL: 'https://github.com/mint-cocoa/msa_final.git'
     targetRevision: HEAD
     path: '.'
-    kustomize:
-      commonLabels:
-        app: theme-park
   destination:
     server: 'https://kubernetes.default.svc'
     namespace: default
