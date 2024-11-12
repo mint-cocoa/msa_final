@@ -20,12 +20,12 @@ async def reserve_ride(
             reservation_time=reservation.reservation_time
         )
         
-        logger.info(f"Created reservation for user {reservation.user_id} on ride {ride_id}")
+        logger.info(f"Queued reservation for user {reservation.user_id} on ride {ride_id}")
         return {
-            "message": "Reservation created successfully",
-            "queue_position": result["position"],
-            "estimated_wait_time": result["estimated_wait_time"],
-            "status": result["queue_status"]
+            "message": "Reservation request has been queued",
+            "status": "queued",
+            "ride_id": result["ride_id"],
+            "user_id": result["user_id"]
         }
         
     except ValueError as e:

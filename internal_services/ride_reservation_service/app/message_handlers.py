@@ -2,8 +2,15 @@ from datetime import datetime
 import json
 import logging
 from .database import get_redis
+import asyncio
 
-logger = logging.getLogger(__name__)
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler()
+    ]
+)
 
 class ReservationMessageHandler:
     async def handle_reservation_create(self, user_id: str, ride_id: str, 
@@ -11,36 +18,14 @@ class ReservationMessageHandler:
         try:
             redis = await get_redis()
             
-            # 대기열 용량 확인
+            # 기본 정보 조회만 수행
             info_key = f"ride_info:{ride_id}"
             ride_info = await redis.hgetall(info_key)
             
             if not ride_info:
-                logger.error(f"Ride info not found for ride_id: {ride_id}")
+                logging.error(f"Ride info not found for ride_id: {ride_id}")
                 raise ValueError("Invalid ride ID")
-                
-            queue_key = f"ride_queue:{ride_id}"
-            current_queue_size = await redis.zcard(queue_key)
-            max_capacity = int(ride_info.get('max_capacity', 100))
-            
-            if current_queue_size >= max_capacity:
-                logger.warning(f"Queue is full for ride {ride_id}")
-                raise ValueError("Queue is full")
-            
-            # 현재 상태 확인
-            rider_status_key = f"rider_status:{ride_id}"
-            current_status = await redis.hget(rider_status_key, user_id)
-            if current_status in ["waiting", "riding"]:
-                raise ValueError(f"User already in {current_status} status")
-            
-            # 파이프라인으로 여러 작업 한번에 처리
-            pipe = redis.pipeline()
-            pipe.zadd(queue_key, {user_id: int(reservation_time.timestamp())})
-            pipe.hset(rider_status_key, user_id, "queued")
-            await pipe.execute()
-            
-            logger.info(f"Created reservation: {queue_key}")
-            
+
             # Redis PubSub을 통해 예약 생성 이벤트 발행
             message = {
                 "action": "create",
@@ -51,122 +36,80 @@ class ReservationMessageHandler:
             }
             
             await redis.publish('ride_reservations', json.dumps(message))
-            logger.info(f"Published reservation create event: {message}")
+            logging.info(f"Published reservation create event: {message}")
             
-            # 대기열 위치 및 예상 시간 계산
-            position = await redis.zrank(queue_key, user_id)
-            queue_position = position + 1 if position is not None else None
-            
-            if queue_position:
-                capacity_per_ride = int(ride_info.get('capacity_per_ride', 1))
-                ride_duration = int(ride_info.get('ride_duration', 5))
-                estimated_wait_time = ((queue_position - 1) // capacity_per_ride) * ride_duration
-            else:
-                estimated_wait_time = 0
-                
             return {
-                "position": queue_position,
-                "estimated_wait_time": estimated_wait_time,
-                "queue_status": "queued",
-                "current_status": "queued"
+                "status": "queued",
+                "message": "Reservation request has been queued",
+                "ride_id": ride_id,
+                "user_id": user_id
             }
             
         except Exception as e:
-            logger.error(f"Error in handle_reservation_create: {str(e)}")
+            logging.error(f"Error in handle_reservation_create: {str(e)}")
             raise
 
     async def handle_reservation_cancel(self, user_id: str, ride_id: str, reason: str = None):
         try:
             redis = await get_redis()
             
-            # 현재 상태 확인
-            rider_status_key = f"rider_status:{ride_id}"
-            current_status = await redis.hget(rider_status_key, user_id)
-            
-            if not current_status:
-                logger.warning(f"No status found for user {user_id} in ride {ride_id}")
-                return False
-            
-            # 파이프라인으로 여러 작업 한번에 처리
-            pipe = redis.pipeline()
-            
-            # 상태에 따른 처리
-            if current_status == "queued":
-                queue_key = f"ride_queue:{ride_id}"
-                pipe.zrem(queue_key, user_id)
-            elif current_status == "waiting":
-                waiting_riders_key = f"waiting_riders:{ride_id}"
-                pipe.srem(waiting_riders_key, user_id)
-            elif current_status == "riding":
-                active_riders_key = f"active_riders:{ride_id}"
-                pipe.srem(active_riders_key, user_id)
-            
-            # 상태 제거
-            pipe.hdel(rider_status_key, user_id)
-            await pipe.execute()
-            
             # Redis PubSub을 통해 취소 이벤트 발행
             message = {
                 "action": "cancel",
                 "user_id": user_id,
                 "ride_id": ride_id,
-                "previous_status": current_status,
-                "reason": reason
+                "reason": reason,
+                "timestamp": int(datetime.now().timestamp())
             }
             
             await redis.publish('ride_cancellations', json.dumps(message))
-            logger.info(f"Published reservation cancel event: {message}")
+            logging.info(f"Published reservation cancel event: {message}")
             
-            return True
+            return {
+                "status": "processing",
+                "message": "Cancellation request has been queued",
+                "ride_id": ride_id,
+                "user_id": user_id
+            }
             
         except Exception as e:
-            logger.error(f"Error in handle_reservation_cancel: {str(e)}")
+            logging.error(f"Error in handle_reservation_cancel: {str(e)}")
             raise
 
     async def get_queue_status(self, ride_id: str, user_id: str = None):
         try:
             redis = await get_redis()
-            queue_key = f"ride_queue:{ride_id}"
-            info_key = f"ride_info:{ride_id}"
-            rider_status_key = f"rider_status:{ride_id}"
             
-            # 시설 정보 조회
-            ride_info = await redis.hgetall(info_key)
-            if not ride_info:
-                logger.error(f"Ride info not found for ride_id: {ride_id}")
-                raise ValueError("Invalid ride ID")
-            
-            # 대기열 정보 조회
-            queue_length = await redis.zcard(queue_key)
-            current_active = int(ride_info.get('current_active_riders', 0))
-            current_waiting = int(ride_info.get('current_waiting_riders', 0))
-            
-            response = {
-                "queue_length": queue_length,
-                "current_active_riders": current_active,
-                "current_waiting_riders": current_waiting,
-                "max_capacity": int(ride_info.get('max_capacity', 100)),
-                "capacity_per_ride": int(ride_info.get('capacity_per_ride', 10)),
-                "ride_duration": int(ride_info.get('ride_duration', 5)),
-                "status": "available" if queue_length < int(ride_info.get('max_capacity', 100)) else "full"
+            # Redis PubSub을 통해 상태 조회 이벤트 발행
+            message = {
+                "action": "get_status",
+                "ride_id": ride_id,
+                "user_id": user_id,
+                "timestamp": int(datetime.now().timestamp())
             }
             
-            # 특정 사용자의 정보 조회
-            if user_id:
-                user_status = await redis.hget(rider_status_key, user_id)
-                if user_status:
-                    response["user_status"] = user_status
-                    
-                    if user_status == "queued":
-                        position = await redis.zrank(queue_key, user_id)
-                        if position is not None:
-                            response["user_position"] = position + 1
-                            capacity_per_ride = int(ride_info.get('capacity_per_ride', 1))
-                            ride_duration = int(ride_info.get('ride_duration', 5))
-                            response["estimated_wait_time"] = ((position) // capacity_per_ride) * ride_duration
-                    
-            return response
+            await redis.publish('ride_status', json.dumps(message))
+            logging.info(f"Published status check event: {message}")
+            
+            # 상태 조회는 동기적으로 필요하므로 응답을 기다림
+            # 이를 위해 임시 응답 채널 생성
+            response_channel = f"status_response:{ride_id}:{user_id}"
+            pubsub = redis.pubsub()
+            await pubsub.subscribe(response_channel)
+            
+            try:
+                # 응답 대기 (최대 5초)
+                for _ in range(50):  # 0.1초 * 50 = 5초
+                    message = await pubsub.get_message(ignore_subscribe_messages=True)
+                    if message and message['type'] == 'message':
+                        return json.loads(message['data'])
+                    await asyncio.sleep(0.1)
+                
+                raise TimeoutError("Status check request timed out")
+                
+            finally:
+                await pubsub.unsubscribe(response_channel)
             
         except Exception as e:
-            logger.error(f"Error in get_queue_status: {str(e)}")
+            logging.error(f"Error in get_queue_status: {str(e)}")
             raise

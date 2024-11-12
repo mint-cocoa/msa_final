@@ -1,6 +1,8 @@
 from fastapi import APIRouter, HTTPException, Request
 import os
 import logging
+import time
+import json
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -101,16 +103,32 @@ async def get_ride_info(ride_id: str, request: Request):
 async def get_queues_summary(request: Request):
     """모든 시설의 대기열 요약 정보 조회"""
     try:
+        logger.info("시설 대기열 요약 정보 조회 시작")
         summary = []
+        
+        # Redis에서 모든 ride_queue 키 조회
+        queue_keys = []
         async for key in request.app.state.redis.scan_iter(match="ride_queue:*"):
+            queue_keys.append(key)
+        
+        logger.info(f"발견된 대기열 키: {queue_keys}")
+        
+        for key in queue_keys:
             facility_id = key.split(":")[1]
+            logger.info(f"시설 ID {facility_id} 처리 중")
             
             # 대기열 길이
             queue_length = await request.app.state.redis.zcard(key)
+            logger.info(f"대기열 길이: {queue_length}")
             
             # 시설 정보
             info_key = f"ride_info:{facility_id}"
             facility_info = await request.app.state.redis.hgetall(info_key)
+            logger.info(f"시설 정보: {facility_info}")
+            
+            if not facility_info:
+                logger.warning(f"시설 정보를 찾을 수 없음: {facility_id}")
+                continue
             
             # 예상 대기 시간 계산 (분 단위)
             capacity_per_ride = int(facility_info.get('capacity_per_ride', 1))
@@ -125,12 +143,14 @@ async def get_queues_summary(request: Request):
                 "status": "full" if queue_length >= int(facility_info.get('max_capacity', 100)) else "available"
             })
         
+        logger.info(f"처리된 총 시설 수: {len(summary)}")
         return {
             "total_facilities": len(summary),
             "queues_summary": summary
         }
         
     except Exception as e:
+        logger.error(f"대기열 요약 정보 조회 중 오류 발생: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to get queues summary: {str(e)}")
 
 @router.get("/riders/active/{ride_id}")
@@ -171,117 +191,105 @@ async def get_waiting_riders(ride_id: str, request: Request):
 
 @router.post("/riders/start-ride/{ride_id}")
 async def start_ride(ride_id: str, request: Request):
-    """다음 탑승 시작 - 대기열에서 사용자들을 active로 이동"""
+    """대기열에서 active로 이동"""
     try:
-        info_key = f"ride_info:{ride_id}"
-        facility_info = await request.app.state.redis.hgetall(info_key)
-        capacity = int(facility_info.get('capacity_per_ride', 10))
-        
-        # 대기열에서 다음 탑승자들 선택
-        queue_key = f"ride_queue:{ride_id}"
-        next_riders = await request.app.state.redis.zrange(queue_key, 0, capacity - 1)
-        
-        if not next_riders:
-            raise HTTPException(status_code=404, detail="No riders in queue")
-            
-        active_riders_key = f"active_riders:{ride_id}"
-        waiting_riders_key = f"waiting_riders:{ride_id}"
-        
-        # 파이프라인으로 여러 작업 한번에 처리
-        pipe = request.app.state.redis.pipeline()
-        
-        # 대기열에서 제거
-        pipe.zrem(queue_key, *next_riders)
-        # 대기 상태로 이동
-        pipe.sadd(waiting_riders_key, *next_riders)
-        # 상태 업데이트
-        pipe.hset(info_key, "current_waiting_riders", len(next_riders))
-        
-        await pipe.execute()
-        
-        logger.info(f"Started ride for {len(next_riders)} riders in {ride_id}")
-        return {
+        # Redis PubSub으로 메시지 발행
+        message = {
+            "action": "start_ride",
             "ride_id": ride_id,
-            "started_riders": next_riders,
-            "total_started": len(next_riders)
+            "timestamp": time.time()
         }
-    except HTTPException:
-        raise
+        
+        await request.app.state.redis.publish('ride_operations', json.dumps(message))
+        logger.info(f"Published start_ride message for ride {ride_id}")
+        
+        return {
+            "status": "processing",
+            "message": f"Start ride request for {ride_id} has been queued"
+        }
     except Exception as e:
-        logger.error(f"Error starting ride: {str(e)}")
+        logger.error(f"Error publishing start ride message: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/riders/complete-ride/{ride_id}")
 async def complete_ride(ride_id: str, request: Request):
     """탑승 완료 처리"""
     try:
-        active_riders_key = f"active_riders:{ride_id}"
-        waiting_riders_key = f"waiting_riders:{ride_id}"
-        info_key = f"ride_info:{ride_id}"
-        
-        # 현재 탑승 중인 사용자들 조회
-        active_riders = await request.app.state.redis.smembers(active_riders_key)
-        
-        if not active_riders:
-            raise HTTPException(status_code=404, detail="No active riders")
-            
-        # 파이프라인으로 여러 작업 한번에 처리
-        pipe = request.app.state.redis.pipeline()
-        
-        # 활성 상태에서 제거
-        pipe.srem(active_riders_key, *active_riders)
-        # 상태 업데이트
-        pipe.hset(info_key, "current_active_riders", 0)
-        
-        await pipe.execute()
-        
-        logger.info(f"Completed ride for {len(active_riders)} riders in {ride_id}")
-        return {
+        # Redis PubSub으로 메시지 발행
+        message = {
+            "action": "complete_ride",
             "ride_id": ride_id,
-            "completed_riders": list(active_riders),
-            "total_completed": len(active_riders)
+            "timestamp": time.time()
         }
-    except HTTPException:
-        raise
+        
+        await request.app.state.redis.publish('ride_operations', json.dumps(message))
+        logger.info(f"Published complete_ride message for ride {ride_id}")
+        
+        return {
+            "status": "processing",
+            "message": f"Complete ride request for {ride_id} has been queued"
+        }
     except Exception as e:
-        logger.error(f"Error completing ride: {str(e)}")
+        logger.error(f"Error publishing complete ride message: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/riders/board/{ride_id}")
-async def board_ride(ride_id: str, request: Request):
-    """대기 상태에서 탑승 상태로 변경"""
+@router.post("/facility/reset/{facility_id}")
+async def reset_facility_queue(facility_id: str, request: Request):
+    """특정 시설의 모든 큐를 초기화"""
     try:
-        waiting_riders_key = f"waiting_riders:{ride_id}"
-        active_riders_key = f"active_riders:{ride_id}"
-        info_key = f"ride_info:{ride_id}"
+        # 시설 정보 조회
+        info_key = f"ride_info:{facility_id}"
+        facility_info = await request.app.state.redis.hgetall(info_key)
         
-        # 대기 중인 사용자들 조회
-        waiting_riders = await request.app.state.redis.smembers(waiting_riders_key)
-        
-        if not waiting_riders:
-            raise HTTPException(status_code=404, detail="No waiting riders")
+        if not facility_info:
+            raise HTTPException(status_code=404, detail="Facility not found")
             
-        # 파이프라인으로 여러 작업 한번에 처리
+        # 초기화할 큐 키들
+        queue_key = f"ride_queue:{facility_id}"
+        active_riders_key = f"active_riders:{facility_id}"
+        waiting_riders_key = f"waiting_riders:{facility_id}"
+        rider_status_key = f"rider_status:{facility_id}"
+        
         pipe = request.app.state.redis.pipeline()
         
-        # 대기 상태에서 제거하고 활성 상태로 이동
-        pipe.srem(waiting_riders_key, *waiting_riders)
-        pipe.sadd(active_riders_key, *waiting_riders)
+        # 모든 큐 초기화
+        pipe.delete(queue_key)
+        pipe.delete(active_riders_key)
+        pipe.delete(waiting_riders_key)
+        pipe.delete(rider_status_key)
         
-        # 상태 업데이트
-        pipe.hset(info_key, "current_waiting_riders", 0)
-        pipe.hset(info_key, "current_active_riders", len(waiting_riders))
+        # 빈 큐들 다시 생성
+        pipe.zadd(queue_key, {f"init:{facility_id}": 0})  # 빈 대기열 초기화
+        pipe.sadd(active_riders_key, "")  # 빈 활성 라이더 세트
+        pipe.sadd(waiting_riders_key, "")  # 빈 대기 라이더 세트
+        
+        # 시설 정보 초기화
+        pipe.hset(info_key, mapping={
+            "current_queue_length": 0,
+            "current_waiting_riders": 0,
+            "current_active_riders": 0,
+            "total_queue_count": 0,
+            "facility_name": facility_info.get("facility_name", "Unknown"),
+            "max_capacity": facility_info.get("max_capacity", 100),
+            "ride_duration": facility_info.get("ride_duration", 5),
+            "capacity_per_ride": facility_info.get("capacity_per_ride", 10),
+            "status": facility_info.get("status", "active")
+        })
+        
+        # 라이더 상태 초기화
+        pipe.hset(rider_status_key, "initialized", "true")
         
         await pipe.execute()
         
-        logger.info(f"Boarded {len(waiting_riders)} riders in {ride_id}")
+        logger.info(f"Successfully reset all queues for facility {facility_id}")
         return {
-            "ride_id": ride_id,
-            "boarded_riders": list(waiting_riders),
-            "total_boarded": len(waiting_riders)
+            "status": "success",
+            "message": f"All queues reset for facility {facility_id}",
+            "facility_id": facility_id
         }
+        
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error boarding ride: {str(e)}")
+        logger.error(f"Error resetting facility queues: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))

@@ -1,13 +1,11 @@
 from fastapi import FastAPI, HTTPException
 import os
 import aioredis
-import httpx
 import logging
 from .routes import router
-from prometheus_fastapi_instrumentator import Instrumentator
-from .metrics import *
+from .redis_pubsub import start_pubsub_listener
 import asyncio
-
+import httpx
 app = FastAPI(
     title="Redis Service",
     description="Service for managing redis queues",
@@ -42,18 +40,30 @@ async def initialize_facility_queues(redis):
             
             logging.info(f"Initializing queues for {len(facilities)} active facilities")
             
+            # 기존 큐 초기화
+            for facility in facilities:
+                facility_id = str(facility.get("_id"))
+                pattern = f"*:{facility_id}"
+                
+                async for key in redis.scan_iter(match=pattern):
+                    await redis.delete(key)
+                logging.info(f"Cleared existing keys for facility {facility_id}")
+            
+            # 새로운 큐 설정
             for facility in facilities:
                 facility_id = str(facility.get("_id"))
                 
-                # 대기열 관련 키들
+                # 필요한 키들
                 queue_key = f"ride_queue:{facility_id}"
                 active_riders_key = f"active_riders:{facility_id}"
-                waiting_riders_key = f"waiting_riders:{facility_id}"
                 
-                # 기존 큐들 초기화
-                await redis.delete(queue_key)
-                await redis.delete(active_riders_key)
-                await redis.delete(waiting_riders_key)
+                # 빈 Sorted Set으로 대기열 초기화
+                await redis.zadd(queue_key, {f"init:{facility_id}": 0})
+                await redis.zrem(queue_key, f"init:{facility_id}")  # 초기화용 더미 데이터 제거
+                
+                # 빈 Set으로 active_riders 초기화
+                await redis.sadd(active_riders_key, "")
+                await redis.srem(active_riders_key, "")  # 초기화용 더미 데이터 제거
                 
                 # 시설 정보 저장
                 info_key = f"ride_info:{facility_id}"
@@ -63,11 +73,13 @@ async def initialize_facility_queues(redis):
                     "ride_duration": facility.get("ride_duration", 5),
                     "capacity_per_ride": facility.get("capacity_per_ride", 10),
                     "status": facility.get("status", "active"),
+                    "current_waiting_riders": "0",
+                    "current_active_riders": "0"
                 })
                 
-                # 라이더 상태 추적을 위한 해시 생성
+                # 라이더 상태 추적을 위한 해시
                 rider_status_key = f"rider_status:{facility_id}"
-                await redis.delete(rider_status_key)
+                await redis.hset(rider_status_key, "initialized", "true")
                 
                 logging.info(f"Initialized facility {facility_id} with name {facility.get('name')}")
                 
@@ -86,7 +98,6 @@ async def check_redis_connection(redis):
 
 @app.on_event("startup")
 async def startup_event():
-    Instrumentator().instrument(app).expose(app)
     try:
         # Redis 클라이언트 초기화
         app.state.redis = await aioredis.from_url(
@@ -105,8 +116,9 @@ async def startup_event():
         await initialize_facility_queues(app.state.redis)
         logging.info("Facility queues initialization completed")
         
-        # 메트릭 업데이트 함수
-        await update_metrics(app.state.redis)
+        # PubSub 리스너 시작
+        asyncio.create_task(start_pubsub_listener(app.state.redis))
+        logging.info("Redis PubSub listener started")
         
     except Exception as e:
         logging.error(f"Startup failed: {str(e)}")
@@ -131,51 +143,3 @@ async def health_check():
 
 app.include_router(router, prefix="/api")
 
-# 메트릭 업데이트 함수
-async def update_metrics(redis):
-    while True:
-        try:
-            # 모든 시설의 큐 상태 조회
-            async for key in redis.scan_iter(match="ride_queue:*"):
-                facility_id = key.split(":")[1]
-                info_key = f"ride_info:{facility_id}"
-                
-                # 시설 정보 조회
-                facility_info = await redis.hgetall(info_key)
-                facility_name = facility_info.get('facility_name', 'Unknown')
-                
-                # 큐 길이
-                queue_length = await redis.zcard(key)
-                QUEUE_LENGTH.labels(
-                    facility_id=facility_id,
-                    facility_name=facility_name
-                ).set(queue_length)
-                
-                # 대기 시간 계산
-                capacity_per_ride = int(facility_info.get('capacity_per_ride', 1))
-                ride_duration = int(facility_info.get('ride_duration', 5))
-                wait_time = (queue_length / capacity_per_ride) * ride_duration
-                WAITING_TIME.labels(
-                    facility_id=facility_id,
-                    facility_name=facility_name
-                ).set(wait_time)
-                
-                # 활성 탑승객
-                active_riders_key = f"active_riders:{facility_id}"
-                active_count = await redis.scard(active_riders_key)
-                ACTIVE_RIDERS.labels(
-                    facility_id=facility_id,
-                    facility_name=facility_name
-                ).set(active_count)
-                
-                # 큐 용량
-                max_capacity = int(facility_info.get('max_capacity', 100))
-                QUEUE_CAPACITY.labels(
-                    facility_id=facility_id,
-                    facility_name=facility_name
-                ).set(max_capacity)
-                
-        except Exception as e:
-            logging.error(f"Error updating metrics: {e}")
-            
-        await asyncio.sleep(15)  # 15초마다 업데이트

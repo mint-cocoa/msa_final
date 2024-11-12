@@ -3,13 +3,22 @@ from fastapi import FastAPI
 import aioredis
 from .routes import router as ride_reservation_router
 from .database import Database
-
+import logging
 app = FastAPI(
     title="Ride Reservation Service",
     description="Service for managing ride reservations",
     version="1.0.0",
     root_path="/reservations"
 )
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler()
+    ]
+)
+
 
 REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379")
 

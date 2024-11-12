@@ -18,7 +18,6 @@ COPY . .
 # 환경변수 설정
 ENV REDIS_URL="redis://redis:6379"
 
-
 EXPOSE 8000
 
 # 기본 실행 명령
