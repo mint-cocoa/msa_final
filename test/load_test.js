@@ -1,13 +1,74 @@
 import http from 'k6/http';
 import { check, group } from 'k6';
 import { randomString } from 'https://jslib.k6.io/k6-utils/1.2.0/index.js';
-import exec from 'k6/execution';
 
-const log = {
-    info: msg => { console.log(`INFO [${new Date().toISOString()}] ${msg}`) },
-    warn: msg => { console.log(`WARN [${new Date().toISOString()}] ${msg}`) },
-    error: msg => { console.log(`ERROR [${new Date().toISOString()}] ${msg}`) }
+
+
+// 전역 상태 관리
+const STATE = {
+    TIME_SETTINGS: {
+        PARK_OPEN_HOUR: 9,
+        PARK_CLOSE_HOUR: 22,
+        LOOP_MINUTES: 1,
+        currentTime: new Date(),
+        
+        // 시간 관리 메서드들
+        initialize() {
+            this.currentTime = new Date();
+            this.currentTime.setHours(this.PARK_OPEN_HOUR, 0, 0, 0);
+        },
+        
+        advance() {
+            if (!this.currentTime) {
+                this.initialize();
+            }
+            this.currentTime.setMinutes(
+                this.currentTime.getMinutes() + this.LOOP_MINUTES
+            );
+            return this.currentTime;
+        },
+        
+        getCurrentTime() {
+            return this.currentTime || this.initialize();
+        }
+    },
+    FACILITIES: []  // 운영 중인 시설 목록
 };
+
+// setup 함수 - 테스트 시작 전 1회 실행
+export function setup() {
+    // 시간 초기화
+    STATE.TIME_SETTINGS.initialize();
+    
+    // 시설 정보 조회
+    const facilitiesResponse = http.get(`${FACILITY_SERVICE_URL}/facilities/active`, {
+        headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json'
+        }
+    });
+
+    if (facilitiesResponse.status === 200) {
+        try {
+            const data = JSON.parse(facilitiesResponse.body);
+            if (data.status === "success" && data.data && Array.isArray(data.data.facilities)) {
+                STATE.FACILITIES = data.data.facilities.map(f => ({
+                    id: f._id,
+                    name: f.name,
+                    capacity: f.capacity_per_ride,
+                    duration: f.ride_duration,
+                    max_capacity: f.max_queue_capacity
+                }));
+                console.info(`초기화 완료: ${STATE.FACILITIES.length}개 시설 로드됨`);
+                return { facilities: STATE.FACILITIES };
+            }
+        } catch (error) {
+            console.error('시설 데이터 초기화 실패:', error.message);
+            return null;
+        }
+    }
+    return null;
+}
 
 export const options = {
     scenarios: {
@@ -31,52 +92,26 @@ const BASE_URL = 'https://parkservice.mintcocoa.cc/reservations/api';
 const REDIS_SERVICE_URL = 'https://parkservice.mintcocoa.cc/redis/api';
 const FACILITY_SERVICE_URL = 'https://parkservice.mintcocoa.cc/facilities/api';
 
-export default function () {
-    // 시설 정보 조회
-    const facilitiesResponse = http.get(`${FACILITY_SERVICE_URL}/facilities/active`, {
-        headers: {
-            'Accept': 'application/json',
-            'Content-Type': 'application/json'
-        }
-    });
-
-    check(facilitiesResponse, {
-        '시설 정보 조회 성공': (r) => r.status === 200
-    });
-
-    if (facilitiesResponse.status !== 200) {
-        log.error('시설 조회 실패:', facilitiesResponse.status);
+export default function (data) {
+    if (!data || !data.facilities || data.facilities.length === 0) {
+        console.error('시설 데이터가 없습니다');
         return;
     }
 
-    let facilities = [];
-    try {
-        const data = JSON.parse(facilitiesResponse.body);
-        if (data.status === "success" && data.data && Array.isArray(data.data.facilities)) {
-            facilities = data.data.facilities.map(f => ({
-                id: f._id,
-                name: f.name,
-                capacity: f.capacity_per_ride,
-                duration: f.ride_duration,
-                max_capacity: f.max_queue_capacity
-            }));
-            log.info(`활성화된 시설 수: ${facilities.length}`);
-        } else {
-            log.error('올바른 시설 데이터 형식이 아닙니다');
-            return;
-        }
-    } catch (error) {
-        log.error('시설 데이터 파싱 실패:', error.message);
+    // 시간 진행
+    const currentTime = STATE.TIME_SETTINGS.advance();
+    const currentHour = currentTime.getHours();
+    
+    if (currentHour < STATE.TIME_SETTINGS.PARK_OPEN_HOUR || 
+        currentHour >= STATE.TIME_SETTINGS.PARK_CLOSE_HOUR) {
+        console.info(`운영 시간이 아닙니다. 현재 시각: ${currentTime.toLocaleTimeString()}`);
         return;
     }
 
-    if (facilities.length === 0) {
-        log.error('활성화된 시설이 없습니다');
-        return;
-    }
-
-    // 랜덤하게 하나의 시설 선택
-    const facility = facilities[Math.floor(Math.random() * facilities.length)];
+    console.info(`현재 시각: ${currentTime.toLocaleTimeString()}`);
+    
+    // 랜덤하게 시설 선택
+    const facility = data.facilities[Math.floor(Math.random() * data.facilities.length)];
     
     // 1. 시설 대기열 정보 조회
     const statusResponse = http.get(`${REDIS_SERVICE_URL}/ride_info/${facility.id}`, {
@@ -102,21 +137,20 @@ export default function () {
     });
 
     if (!statusCheck) {
-        log.error(`대기열 상태 조회 실패 - 시설 ID: ${facility.id}`);
+        console.error(`대기열 상태 조회 실패 - 시설 ID: ${facility.id}`);
         return;
     }
 
     const status = JSON.parse(statusResponse.body);
     const currentWaitingRiders = status.current_waiting_riders
     const currentActiveRiders = status.current_active_riders
-    const maxCapacity = parseInt(status.max_capacity, 10);
-
+    const maxCapacity = status.max_capacity 
     if (status.status !== 'active') {
-        log.warn(`시설 ${facility.name} 상태 비활성화`);
+        console.warn(`시설 ${facility.name} 상태 비활성화`);
         return;
     }
 
-    log.info(`시설 ${facility.name} 현재 대기열: ${currentWaitingRiders}/${maxCapacity}`);
+    console.info(`시설 ${facility.name} 현재 대기열: ${currentWaitingRiders}/${maxCapacity}`);
 
     if (currentWaitingRiders < maxCapacity) {
         // 2. 예약 생성
@@ -150,62 +184,49 @@ export default function () {
     }
 
     // 4. 놀이기구 운영 로직
-    if (currentActiveRiders === 0 && currentWaitingRiders > 0) {
+    if (currentWaitingRiders > 0) {
         const targetQueue = Math.floor(maxCapacity * 0.7);  // 목표 대기열 70%
-        const minRequiredRiders = facility.capacity;  // 최소 필요 탑승 인원
+        const minRequiredRiders = facility.capacity_per_ride;  // 최소 필요 탑승 인원
         
         let shouldStartRide = true;
         
-        if (currentWaitingRiders < minRequiredRiders) {
-            shouldStartRide = false;
-            log.info(`대기 인원 부족: ${currentWaitingRiders}명 (필요: ${minRequiredRiders}명) - 탑승 보류`);
-        }
-        else if (currentWaitingRiders >= minRequiredRiders) {
-            const queueRatio = currentWaitingRiders / targetQueue;  // 현재 대기율
-            let probability;
-            
-            if (queueRatio < 0.3) {
-                // 대기열이 매우 적을 때 (30% 미만)
-                probability = 0.2;  // 20% 확률로 운행
-                log.info(`대기열 매우 부족 (${Math.round(queueRatio * 100)}%): ${currentWaitingRiders}명`);
-            } 
-            else if (queueRatio < 0.5) {
-                // 대기열이 적을 때 (30-50%)
-                probability = 0.4;  // 40% 확률로 운행
-                log.info(`대기열 부족 (${Math.round(queueRatio * 100)}%): ${currentWaitingRiders}명`);
-            }
-            else if (queueRatio < 0.8) {
-                // 대기열이 적정 수준일 때 (50-80%)
-                probability = 0.6;  // 60% 확률로 운행
-                log.info(`대기열 적정 (${Math.round(queueRatio * 100)}%): ${currentWaitingRiders}명`);
-            }
-            else if (queueRatio < 1.0) {
-                // 대기열이 많을 때 (80-100%)
-                probability = 0.8;  // 80% 확률로 운행
-                log.info(`대기열 많음 (${Math.round(queueRatio * 100)}%): ${currentWaitingRiders}명`);
-            }
-            else {
-                // 대기열이 가득 찼을 때 (100% 이상)
-                probability = 1.0;  // 100% 확률로 운행
-                log.info(`대기열 포화 (${Math.round(queueRatio * 100)}%): ${currentWaitingRiders}명`);
-            }
-            
-            shouldStartRide = Math.random() < probability;
-            
-            // 운행 결정 로그
-            const decisionMsg = shouldStartRide ? '실행' : '보류';
-            const probabilityPercent = Math.round(probability * 100);
-            log.info(`탑승 처리 결정 (${probabilityPercent}% 확률): ${decisionMsg}`);
-            
-            // 대기 시간 예상 계산
-            const estimatedCycles = Math.ceil(currentWaitingRiders / facility.capacity);
-            const estimatedWaitTime = estimatedCycles * facility.duration;
-            log.info(`예상 대기 시간: 약 ${estimatedWaitTime}분 (${estimatedCycles}회 운행 필요)`);
-        }
-
+        // ... shouldStartRide 결정 로직 ...
+    
         if (shouldStartRide) {
+            // 대기열 상태에 따른 동적 운행 시간 조정
+            let durationMultiplier;
+            const queueRatio = currentWaitingRiders / maxCapacity;
+            
+            if (queueRatio >= 0.9) {
+                // 대기열이 90% 이상일 때 - 빠른 처리
+                durationMultiplier = 0.5;  // 운행 시간 50%로 단축
+            } else if (queueRatio >= 0.7) {
+                // 대기열이 70-90%일 때 - 약간 빠른 처리
+                durationMultiplier = 0.7;  // 운행 시간 70%로 단축
+            } else if (queueRatio >= 0.4) {
+                // 대기열이 40-70%일 때 - 정상 운행
+                durationMultiplier = 1.0;  // 기본 운행 시간
+            } else {
+                // 대기열이 40% 미만일 때 - 여유있게 운행
+                durationMultiplier = 1.2;  // 운행 시간 20% 증가
+            }
+    
+            const adjustedDuration = Math.max(1, Math.round(facility.duration * durationMultiplier));
+            console.info(`현재 대기율: ${Math.round(queueRatio * 100)}%, 조정된 운행 시간: ${adjustedDuration}분 (기본: ${facility.duration}분)`);
+    
             const startRideResponse = http.post(
                 `${REDIS_SERVICE_URL}/riders/start-ride/${facility.id}`,
+                null,
+                { headers: { 'Content-Type': 'application/json' } }
+            );
+    
+            check(startRideResponse, {
+                '탑승 시작 요청 성공': (r) => r.status === 200
+            });
+
+            if (shouldStartRide) {
+                const startRideResponse = http.post(
+                    `${REDIS_SERVICE_URL}/riders/start-ride/${facility.id}`,
                 null,
                 { headers: { 'Content-Type': 'application/json' } }
             );
@@ -215,23 +236,35 @@ export default function () {
             });
 
             if (startRideResponse.status === 200) {
-                const completeRideResponse = http.post(
-                    `${REDIS_SERVICE_URL}/riders/complete-ride/${facility.id}`,
-                    null,
-                    { headers: { 'Accept': 'application/json' } }
-                );
+                // 탑승 시작 시간 기록
+                const rideStartTime = new Date(STATE.TIME_SETTINGS.currentTime);
+                const rideDurationMinutes = facility.duration;
+                const rideEndTime = new Date(rideStartTime);
+                rideEndTime.setMinutes(rideStartTime.getMinutes() + rideDurationMinutes);
+                
+                console.info(`탑승 시작: ${rideStartTime.toLocaleTimeString()}`);
+                console.info(`예상 종료: ${rideEndTime.toLocaleTimeString()}`);
 
-                check(completeRideResponse, {
-                    '탑승 완료 요청 성공': (r) => r.status === 200
-                });
+                // 현재 시간이 종료 시간을 지났는지 확인
+                if (STATE.TIME_SETTINGS.currentTime >= rideEndTime) {
+                    const completeRideResponse = http.post(
+                        `${REDIS_SERVICE_URL}/riders/complete-ride/${facility.id}`,
+                        null,
+                        { headers: { 'Accept': 'application/json' } }
+                    );
+
+                    check(completeRideResponse, {
+                        '탑승 완료 요청 성공': (r) => r.status === 200
+                    });
+                    
+                    console.info(`탑승 완료 처리 (소요시간: ${rideDurationMinutes}분)`);
+                } else {
+                    console.info(`탑승 진행 중... (남은 시간: ${Math.ceil((rideEndTime - STATE.TIME_SETTINGS.currentTime) / 1000 / 60)}분)`);
+                }
             }
         }
     } 
-
-
-    log.info(`시설 ${facility.name}이 현재 운행 중 (탑승: ${currentActiveRiders}명, 대기: ${currentWaitingRiders}명)`);
-    log.info(`시설 ${facility.name}이 대기 중 (대기열: ${currentWaitingRiders}명)`);
-    
+    console.info(`시설 ${facility.name}이 현재 운행 중 (탑승: ${currentActiveRiders}명, 대기: ${currentWaitingRiders}명)`);
+    console.info(`시설 ${facility.name}이 대기 중 (대기열: ${currentWaitingRiders}명)`);
 }
-
-
+}
