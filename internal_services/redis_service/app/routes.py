@@ -93,11 +93,33 @@ async def get_queue_status(ride_id: str, request: Request):
 @router.get("/ride_info/{ride_id}")
 async def get_ride_info(ride_id: str, request: Request):
     """시설의 대기열 정보 조회"""
-    info_key = f"ride_info:{ride_id}"
-    info = await request.app.state.redis.hgetall(info_key)
-    if not info:
-        raise HTTPException(status_code=404, detail="Ride information not found")
-    return info
+    try:
+        info_key = f"ride_info:{ride_id}"
+        info = await request.app.state.redis.hgetall(info_key)
+        
+        if not info:
+            logger.warning(f"Ride information not found for ride_id: {ride_id}")
+            raise HTTPException(status_code=404, detail="Ride information not found")
+            
+        # 문자열을 정수로 변환
+        capacity_per_ride = int(info.get('capacity_per_ride', 1))
+        ride_duration = int(info.get('ride_duration', 5))
+        queue_length = int(info.get('current_waiting_riders', 0))
+        
+        # 예상 대기 시간 계산
+        estimated_wait_time = (queue_length / capacity_per_ride) * ride_duration
+        
+        # 딕셔너리에 새로운 키-값 추가
+        info['estimated_wait_time'] = str(estimated_wait_time)
+        
+        logger.info(f"Retrieved ride info for {ride_id} with wait time: {estimated_wait_time}")
+        return info
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting ride info: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to get ride info: {str(e)}")
 
 @router.get("/queues/summary")
 async def get_queues_summary(request: Request):

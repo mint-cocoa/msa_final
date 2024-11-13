@@ -2,10 +2,15 @@ import asyncio
 import httpx
 import json
 import time
+import os
+from dotenv import load_dotenv
+
+# .env 파일 로드
+load_dotenv()
 
 # OpenRouter API settings
 OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions"
-OPENROUTER_API_KEY = "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"
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 
 # Redis Service URL
 REDIS_SERVICE_URL = "https://parkservice.mintcocoa.cc/redis/api"
@@ -256,8 +261,8 @@ async def monitor_queues():
             else:
                 print("[오류] AI 응답이 시설 수와 일치하지 않습니다")
         
-        print(f"\n[대기] {5}초 후 다음 모니터링 시작")
-        await asyncio.sleep(5)
+        print(f"\n[대기] {1}초 후 다음 모니터링 시작")
+        await asyncio.sleep(1)
 
 def calculate_wait_time(waiting_riders, capacity_per_ride, ride_duration):
     if capacity_per_ride == 0:

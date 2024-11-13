@@ -63,11 +63,9 @@ export function setup() {
 export const options = {
     scenarios: {
         reservation_flow: {
-            executor: 'ramping-vus',
-            startVUs: 0,
-            stages: [
-                { duration: '1m', target: 30 },
-            ],
+            executor: 'constant-vus',
+            vus: 15,           // 동시 사용자 수
+            duration: '5m',    // 테스트 지속 시간
         },
     },
     thresholds: {
